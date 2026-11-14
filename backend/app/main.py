@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from app.api.health_router import router as health_router
 from app.api.job_api.job_router import router as job_router
 from app.api.resume_api.resume_router import router as resume_router
+from app.api.resume_api.workspace_router import router as workspace_router
 from app.api.review_api.review_router import router as review_router
 from app.api.schedule_api.schedule_router import router as schedule_router
 from app.api.workflow_api.workflow_router import router as workflow_router
@@ -30,6 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for router in (
         job_router,
         resume_router,
+        workspace_router,
         review_router,
         workflow_router,
         schedule_router,

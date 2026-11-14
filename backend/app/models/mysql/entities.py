@@ -76,6 +76,13 @@ class File(Base):
     storage_path = Column(String(1024), nullable=False)
     size_bytes = Column(ID, nullable=False)
     media_type = Column(String(100), nullable=False, default="application/pdf")
+    file_type = Column(String(16), nullable=False, default="pdf")
+    parser_name = Column(String(64), nullable=True)
+    parser_version = Column(String(128), nullable=True)
+    markdown_path = Column(String(1024), nullable=True)
+    normalized_markdown_path = Column(String(1024), nullable=True)
+    source_index_path = Column(String(1024), nullable=True)
+    preview_pdf_path = Column(String(1024), nullable=True)
     parse_status = Column(String(16), nullable=False, default="pending")
     page_count = Column(UInt, nullable=True)
     parse_error = Column(Text, nullable=True)
@@ -84,10 +91,53 @@ class File(Base):
     updated_at = Column(Timestamp, nullable=False, default=utcnow, onupdate=utcnow)
     __table_args__ = (
         UniqueConstraint("sha256", name="uk_files_sha256"),
+        CheckConstraint("file_type IN ('pdf', 'docx')", name="ck_files_type"),
         CheckConstraint(
             "parse_status IN ('pending', 'running', 'completed', 'failed')",
             name="ck_files_parse",
         ),
+    )
+
+
+class FileImportTask(Base):
+    __tablename__ = "file_import_tasks"
+    id = Column(ID, primary_key=True, autoincrement=True)
+    task_id = Column(String(64), nullable=False)
+    file_id = Column(ID, nullable=False)
+    status = Column(String(16), nullable=False, default="pending")
+    current_node = Column(String(64), nullable=True)
+    node_progress = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(Timestamp, nullable=True)
+    finished_at = Column(Timestamp, nullable=True)
+    created_at = Column(Timestamp, nullable=False, default=utcnow)
+    updated_at = Column(Timestamp, nullable=False, default=utcnow, onupdate=utcnow)
+    __table_args__ = (
+        UniqueConstraint("task_id", name="uk_import_task_id"),
+        Index("idx_import_file_created", "file_id", "created_at", "id"),
+        Index("idx_import_status_created", "status", "created_at", "id"),
+        ForeignKeyConstraint(["file_id"], ["files.id"], name="fk_import_task_file"),
+        CheckConstraint(
+            "status IN ('pending', 'running', 'completed', 'failed')",
+            name="ck_import_task_status",
+        ),
+    )
+
+
+class JobResume(Base):
+    __tablename__ = "job_resumes"
+    id = Column(ID, primary_key=True, autoincrement=True)
+    job_id = Column(ID, nullable=False)
+    file_id = Column(ID, nullable=False)
+    display_name = Column(String(255), nullable=False)
+    deleted_at = Column(Timestamp, nullable=True)
+    created_at = Column(Timestamp, nullable=False, default=utcnow)
+    updated_at = Column(Timestamp, nullable=False, default=utcnow, onupdate=utcnow)
+    __table_args__ = (
+        UniqueConstraint("job_id", "file_id", name="uk_job_resume_file"),
+        Index("idx_job_resume_visible", "job_id", "deleted_at", "id"),
+        ForeignKeyConstraint(["job_id"], ["jobs.id"], name="fk_resume_job"),
+        ForeignKeyConstraint(["file_id"], ["files.id"], name="fk_resume_file"),
     )
 
 

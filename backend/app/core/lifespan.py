@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.clients.meeting_client import MeetingClient
 from app.clients.mysql_client import MySQLClient
 from app.clients.notification_client import NotificationClient
+from app.services.resume_service.import_runtime import ImportRuntime
 from app.services.schedule_service.actions import ActionService
 from app.services.workflow_service.runtime import WorkflowRuntime
 
@@ -20,6 +21,8 @@ async def lifespan(app: FastAPI):
     runtime = WorkflowRuntime(client, app.state.settings)
     app.state.runtime = runtime
     app.state.actions = ActionService(client, MeetingClient(), NotificationClient())
+    imports = ImportRuntime(client, app.state.settings)
+    app.state.import_runtime = imports
     try:
         try:
             await client.ping()
@@ -33,9 +36,13 @@ async def lifespan(app: FastAPI):
             ) from None
         logger.info("MySQL connected; application ready")
         await runtime.start()
+        await imports.start()
         yield
     finally:
         try:
-            await runtime.close()
+            await imports.close()
         finally:
-            await client.close()
+            try:
+                await runtime.close()
+            finally:
+                await client.close()

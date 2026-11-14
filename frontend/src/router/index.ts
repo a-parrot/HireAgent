@@ -9,6 +9,7 @@ const router = createRouter({
       component: MainLayout,
       redirect: '/jobs',
       children: [
+        { path: 'resumes', name: 'resume-workspace', component: () => import('@/views/resumes/ResumeWorkspaceView.vue'), meta: { title: '简历评估' } },
         {
           path: 'jobs',
           name: 'job-list',

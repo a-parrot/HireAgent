@@ -31,7 +31,7 @@ uv run python main.py
 
 ### 已导入 sql/01-schema.sql 的数据库
 
-不要再无条件执行建表迁移。先运行 `uv run python -m scripts.verify_schema`，并人工核对 sql/01-schema.sql 的 CHECK、默认值及索引；只有确认完整 12 表与本仓库 revision 006 一致时，才执行 `uv run alembic stamp 006`。有结构差异或只有部分表时应先编写增量迁移对齐。检查点表仍由适配器 setup 创建，与业务表版本独立。
+不要再无条件执行建表迁移。先运行 `uv run python -m scripts.verify_schema`，并人工核对 sql/01-schema.sql 的 CHECK、默认值及索引；只有确认完整 14 表与本仓库 revision 008 一致时，才执行 `uv run alembic stamp 008`。有结构差异或只有部分表时应先编写增量迁移对齐。检查点表仍由适配器 setup 创建，与业务表版本独立。
 
 ## 3. 启动与配置
 
@@ -128,3 +128,23 @@ Dockerfile 使用 uv.lock 同步生产依赖，不包含测试依赖。当前只
 岗位 API 支持名称搜索、状态筛选、重新启用和 DELETE 删除。删除使用 deleted_at 从管理列表隐藏，既有发布版本、批次与评估均保留；被删除岗位不允许新增批次、编辑或再次发布。
 
 已有 Alembic 005 的数据库执行 `uv run alembic upgrade head`；使用旧 SQL 直接建表且尚未接管迁移的库，可核对列后执行一次 sql/03-job-soft-delete.sql。新版 01-schema.sql 已含该列，不要重复执行 03。当前配置的服务器已增量加入该列，原有 1 个岗位仍保留并正常出现在默认列表中。
+
+
+## 岗位简历工作区与独立导入
+
+新增 `/resumes` 页面按岗位管理简历。单文件和多文件使用同一个上传接口；后端计算 SHA-256，与浏览器在 HTTPS/localhost 下提交的哈希（如有）比对。同一岗位相同内容只保留一个可见关联，跨岗位复用文件和解析结果。详情与从工作区创建评估批次前重新核验原件哈希；原件损坏可用同内容文件重新上传恢复。
+
+导入不调用 LLM。LangGraph 导入分为准备校验、PDF/Word 分支、文本整理、结果保存，任务与节点状态写入 MySQL；后台限流由 IMPORT_CONCURRENCY 控制。重启恢复 pending/running 任务，MySQL 文件命名锁防止重复认领；整个后端仍按原设计单 worker 运行。导入完成与 AI 评估完成是不同状态，勾选解析完成的简历可创建批次，再由用户在批次详情显式启动评估。
+
+PDF 使用现有 PyMuPDF 逐页提取文本；扫描件无可读文本时明确失败，暂未接入 OCR/MinerU。DOCX 先用本机 LibreOffice 转为 PDF，再使用 PDF 页码与文本，原 DOCX 保留。Ubuntu 直接运行后端时安装：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libreoffice-writer fonts-noto-cjk
+```
+
+LIBREOFFICE_BIN 默认 soffice，也可以指定可执行文件路径。Dockerfile 已加入转换依赖，但本轮未实际构建镜像或验证真实 LibreOffice 转换；缺少程序时任务显示明确错误，可安装后重试。
+
+数据库 head 为 008：007 对应 sql/04-resume-import.sql，008 对应 sql/05-job-resumes.sql。新库使用新版 01-schema.sql（14 表）或 Alembic 初始化；旧 SQL 库只执行尚未应用的 04、05。不要对已手工升级的库重复运行相同 Alembic 迁移；先 verify_schema 并核对约束和默认值后接管。
+
+当前配置库已存在 04 的结构，本轮仅补建 job_resumes 并回填历史关联。已有 jobs/files/batches/candidates 各 1 条保持不变，未修改历史评分、原件或规则，也未启动真实简历评估。数据库未执行 stamp。

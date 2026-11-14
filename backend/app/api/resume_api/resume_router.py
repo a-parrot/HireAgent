@@ -84,7 +84,24 @@ async def original(request: Request, file_id: int):
         raise BusinessError("PDF 原件缺失，请恢复备份", 404)
     return FileResponse(
         path,
-        media_type="application/pdf",
+        media_type=file.media_type,
         filename=filename,
-        content_disposition_type="inline",
+        content_disposition_type="inline" if file.file_type == "pdf" else "attachment",
+    )
+
+
+@router.get("/files/{file_id}/preview")
+async def preview(request: Request, file_id: int):
+    async with request.app.state.mysql.session() as session:
+        file = await require(session, File, file_id)
+        relative = (
+            file.storage_path if file.file_type == "pdf" else file.preview_pdf_path
+        )
+        if not relative:
+            raise BusinessError("预览文件尚未生成", 404)
+        path = resumes.safe_path(request.app.state.settings, relative)
+    if not path.is_file():
+        raise BusinessError("预览文件缺失", 404)
+    return FileResponse(
+        path, media_type="application/pdf", content_disposition_type="inline"
     )

@@ -1,11 +1,11 @@
 # HireAgent MySQL 数据库设计
 
-目标：MySQL 8.4、InnoDB、utf8mb4；覆盖现有方案全部招聘功能。本目录提供 SQL 设计、初始化和增量升级脚本；对应 ORM 与 Alembic 位于 backend/app/models 和 backend/alembic。直接执行 SQL 与 Alembic 迁移是两种初始化入口，不要重复建表。
+目标：MySQL 8.4、InnoDB、utf8mb4；覆盖招聘评估及独立简历导入功能。本目录提供 SQL 设计、初始化和增量升级脚本；对应 ORM 与 Alembic 位于 backend/app/models 和 backend/alembic。直接执行 SQL 与 Alembic 迁移是两种初始化入口，不要重复建表。
 
 ## 文件与执行顺序
 
 1. `00-create-database.sql`：可选建库；Docker 已创建 hireagent 时跳过。需要建库权限，不创建账号或改密码。
-2. `01-schema.sql`：创建 12 张业务表，不含 DROP、TRUNCATE 或清空数据。请先检查目标库是否已有同名业务表。
+2. `01-schema.sql`：创建 14 张业务表，不含 DROP、TRUNCATE 或清空数据。请先检查目标库是否已有同名业务表。
 3. `02-initial-job.sql`：可选导入初始岗位和发布版本 v1；按稳定 code 去重。只导入规则，不导入候选人或固定评估结果。
 
 在 Navicat 选择 hireagent 后打开 SQL 文件，按上述顺序执行。命令行也可在 backend/sql 目录执行（-p 后交互输入密码）：
@@ -23,7 +23,9 @@ Windows SSH 隧道连接时端口改为实际映射值，如 13306。所有文�
 | --- | --- | --- |
 | jobs | 岗位信息、草稿规则、启停、草稿编辑版本 | code 唯一；草稿可未完善 |
 | job_rule_versions | 已发布岗位和规则完整快照 | 岗位内版本号唯一；应用层禁止覆盖 |
-| files | PDF 哈希、原件路径和解析状态 | SHA-256 唯一，跨批次共享原件与解析产物 |
+| files | 简历 SHA-256、类型、原件/产物路径和解析状态 | SHA-256 唯一，跨批次共享原件与解析产物 |
+| file_import_tasks | 文件导入任务、节点进度、失败原因与时间 | task_id 唯一，file_id 关联文件 |
+| job_resumes | 岗位简历关联和移除标记 | 岗位+文件唯一，历史评估保留 |
 | file_pages | 页码和本地页文本索引 | 文件+页码唯一；页码从 1 开始 |
 | batches | 绑定岗位版本及快照的处理批次 | 联合外键保证所选版本属于所选岗位 |
 | candidates | 批次内候选人、三智能体结果、技术与业务状态 | 批次+文件唯一；workflow_id 唯一 |
@@ -81,7 +83,7 @@ LangGraph 检查点通过 langgraph-checkpoint-mysql 的 AIOMySQLSaver.setup 初
 
 数据库业务写入和检查点不在同一事务。节点恢复时先读取 node_executions 的成功输出，避免业务已提交但检查点未保存导致重复执行；人工恢复结果独立记录在 reviews，后端启动时可重试失败恢复而不重复作出审批。
 
-后续 T01–T16 任务以本设计为字段和关系基线，按阶段把对应表实现为 SQLAlchemy 模型和 Alembic 迁移，不重复设计另一套字段。SQL 直接初始化和 Alembic 是两种入口，不得初始化后再无条件执行重复建表迁移。未来只有在迁移确实覆盖同一完整结构、核对 schema 一致后才可 stamp 对应 revision；当前完整结构对应 revision 006；已有旧 SQL 库先核对并补 deleted_at，再进行迁移接管，不盲目 stamp head。已有部分表时应通过增量迁移对齐。
+后续 T01–T16 任务以本设计为字段和关系基线，按阶段把对应表实现为 SQLAlchemy 模型和 Alembic 迁移，不重复设计另一套字段。SQL 直接初始化和 Alembic 是两种入口，不得初始化后再无条件执行重复建表迁移。未来只有在迁移确实覆盖同一完整结构、核对 schema 一致后才可 stamp 对应 revision；当前完整结构对应 revision 008；已有旧 SQL 库先核对并补 deleted_at、导入字段/任务表及岗位简历关联表，再进行迁移接管，不盲目 stamp head。已有部分表时应通过增量迁移对齐。
 
 ## 验证范围
 
@@ -93,4 +95,10 @@ LangGraph 检查点通过 langgraph-checkpoint-mysql 的 AIOMySQLSaver.setup 初
 
 新版 01-schema.sql 包含 jobs.deleted_at。旧 SQL 库可在确认没有该列后执行一次 03-job-soft-delete.sql；已经执行迁移 006 或使用新版初始化脚本时不要重复执行。该列仅用于隐藏岗位，历史规则与批次不删除，规则自定义仍复用 JSON 字段。
 
-2026-11-14 岗位管理升级：已对当前配置库补充 nullable jobs.deleted_at，并只读核对原有 1 个岗位仍在；未修改其名称、规则或历史数据。该记录仅适用于当前配置库，其他部署环境仍需检查该列。
+## 简历独立导入升级（已实现）
+
+- `04-resume-import.sql` / Alembic 007：files 增加文件类型、解析器信息和产物路径；新增 file_import_tasks 保存持久化导入进度。
+- `05-job-resumes.sql` / Alembic 008：新增岗位简历关联 job_resumes，并从旧批次回填关联，支持按岗位查看和移除简历。
+- 新库的 01-schema.sql 已包含以上结构，不再执行 04/05。旧 SQL 库只执行尚未应用的增量脚本；脚本为一次性执行，不要重复添加。Alembic 与 SQL 升级选择一个入口。
+- 当前配置库已存在 04 结构，本轮补建并回填 job_resumes。原 jobs/files/batches/candidates 各 1 条保留。未修改简历原件或历史评估，未 stamp Alembic。
+- 删除仅设置 job_resumes.deleted_at，原件、解析产物与候选人历史保留。重新上传相同内容可恢复岗位关联。重试新建导入任务，不覆盖旧任务记录；不引入向量表。

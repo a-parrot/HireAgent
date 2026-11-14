@@ -7,6 +7,7 @@ const route = useRoute()
 const collapsed = ref(window.innerWidth <= 720)
 const activeMenu = computed(() => {
   const path = route.path
+  if (path.startsWith('/resumes')) return '/resumes'
   if (path.startsWith('/jobs')) return '/jobs'
   if (path.startsWith('/batches') || path.startsWith('/candidates')) return '/batches'
   if (path.startsWith('/schedules')) return '/schedules'
@@ -23,6 +24,7 @@ const activeBatchId = computed(() => route.params.batchId as string | undefined)
       <div class="brand"><span class="brand-mark">H</span><span v-if="!collapsed" class="brand-name">HireAgent 招聘系统</span></div>
       <el-menu :default-active="activeMenu" :collapse="collapsed" :collapse-transition="false" router class="menu">
         <el-menu-item index="/jobs" ><el-icon><Briefcase /></el-icon><template #title>岗位管理</template></el-menu-item>
+        <el-menu-item index="/resumes"><el-icon><Document /></el-icon><template #title>简历评估</template></el-menu-item>
         <el-menu-item index="/batches" ><el-icon><FolderOpened /></el-icon><template #title>评估批次</template></el-menu-item>
         <el-menu-item index="/schedules" ><el-icon><Calendar /></el-icon><template #title>面试排期</template></el-menu-item>
         <el-menu-item v-if="activeBatchId" :index="`/events/${activeBatchId}`" ><el-icon><Document /></el-icon><template #title>执行日志</template></el-menu-item>

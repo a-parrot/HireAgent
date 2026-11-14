@@ -52,7 +52,7 @@ export async function listCandidates(query: CandidateQuery): Promise<Paged<Candi
 }
 
 export function pdfUrl(fileId: string): string {
-  return `/api/files/${fileId}`
+  return `/api/files/${fileId}/preview`
 }
 
 export async function retryCandidate(id: string): Promise<{ candidate_id: string; status: string }> {

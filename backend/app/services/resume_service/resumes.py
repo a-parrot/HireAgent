@@ -13,6 +13,7 @@ from app.models.mysql.entities import (
     File,
     FilePage,
     Job,
+    JobResume,
     JobRuleVersion,
     Reservation,
     Review,
@@ -103,6 +104,17 @@ async def create_batch(db, config, job_id, version_id, uploads, name):
                         workflow_id=uuid4().hex,
                     )
                 )
+                link = await session.scalar(
+                    select(JobResume).where(
+                        JobResume.job_id == job_id, JobResume.file_id == file.id
+                    )
+                )
+                if link is None:
+                    session.add(
+                        JobResume(job_id=job_id, file_id=file.id, display_name=filename)
+                    )
+                else:
+                    link.deleted_at = None
             await session.flush()
             result = serialize(batch)
             result["imported_count"] = len(seen)
@@ -220,7 +232,7 @@ def extract_pdf(path):
         raise BusinessError("PDF 损坏或无法读取") from exc
 
 
-async def parse_pdf(db, config, file_id):
+async def parse_pdf(db, config, file_id, *, finalize=True):
     async with db.session() as session:
         file = await require(session, File, file_id)
         if file.parse_status == "completed":
@@ -241,7 +253,12 @@ async def parse_pdf(db, config, file_id):
                 }
                 for r in rows
             ]
-        path = safe_path(config, file.storage_path)
+        path = safe_path(
+            config,
+            file.preview_pdf_path
+            if file.file_type == "docx" and file.preview_pdf_path
+            else file.storage_path,
+        )
     try:
         texts = await asyncio.to_thread(extract_pdf, path)
         outputs = []
@@ -268,7 +285,7 @@ async def parse_pdf(db, config, file_id):
                     len(text),
                 )
             file.parse_status, file.page_count, file.parse_error = (
-                "completed",
+                "completed" if finalize else "running",
                 len(texts),
                 None,
             )

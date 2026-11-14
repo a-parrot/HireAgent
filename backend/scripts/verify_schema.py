@@ -88,7 +88,7 @@ async def main():
             "Columns, types, primary keys, unique keys and foreign keys match baseline."
         )
         print(
-            "Also review CHECK constraints/defaults against sql/01-schema.sql before manually stamping revision 006."
+            "Also review CHECK constraints/defaults against sql/01-schema.sql before manually stamping revision 008."
         )
     finally:
         await db.close()

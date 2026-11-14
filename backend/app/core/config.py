@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     storage_dir: Path = BACKEND_DIR / "storage"
     upload_max_mb: int = Field(default=20, ge=1, le=200)
     upload_max_files: int = Field(default=250, ge=1, le=1000)
+    import_concurrency: int = Field(default=3, ge=1, le=10)
+    libreoffice_bin: str = "soffice"
     model_concurrency: int = Field(default=3, ge=1, le=20)
     llm_base_url: str = ""
     llm_provider: str = "openai"

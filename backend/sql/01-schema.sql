@@ -45,6 +45,13 @@ CREATE TABLE IF NOT EXISTS files (
     storage_path VARCHAR(1024) NOT NULL COMMENT '相对 backend/storage 的受管路径',
     size_bytes BIGINT UNSIGNED NOT NULL,
     media_type VARCHAR(100) NOT NULL DEFAULT 'application/pdf',
+    file_type VARCHAR(16) NOT NULL DEFAULT 'pdf',
+    parser_name VARCHAR(64) NULL,
+    parser_version VARCHAR(128) NULL,
+    markdown_path VARCHAR(1024) NULL,
+    normalized_markdown_path VARCHAR(1024) NULL,
+    source_index_path VARCHAR(1024) NULL,
+    preview_pdf_path VARCHAR(1024) NULL,
     parse_status VARCHAR(16) NOT NULL DEFAULT 'pending' COMMENT 'pending/running/completed/failed',
     page_count INT UNSIGNED NULL,
     parse_error TEXT NULL,
@@ -53,8 +60,9 @@ CREATE TABLE IF NOT EXISTS files (
     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     UNIQUE KEY uk_files_sha256 (sha256),
+    CONSTRAINT ck_files_type CHECK (file_type IN ('pdf', 'docx')),
     CONSTRAINT ck_files_parse CHECK (parse_status IN ('pending', 'running', 'completed', 'failed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='PDF 原件索引，可被不同批次复用';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='简历原件索引，可被不同岗位与批次复用';
 
 CREATE TABLE IF NOT EXISTS file_pages (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -259,3 +267,46 @@ CREATE TABLE IF NOT EXISTS events (
     CONSTRAINT fk_event_candidate FOREIGN KEY (batch_id, candidate_id) REFERENCES candidates (batch_id, id),
     CONSTRAINT ck_event_level CHECK (level IN ('info', 'warning', 'error'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='运行和人工事件，按时间追加';
+
+
+CREATE TABLE IF NOT EXISTS file_import_tasks (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    task_id VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL
+        COMMENT '应用生成的唯一任务标识，可用于 LangGraph thread_id',
+    file_id BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending'
+        COMMENT 'pending/running/completed/failed',
+    current_node VARCHAR(64) NULL
+        COMMENT 'prepare_import/parse_pdf/parse_word/normalize_content/save_import_result',
+    node_progress JSON NULL
+        COMMENT '本次各节点状态、耗时和时间；节点执行后持久化，不保存简历正文',
+    error_message TEXT NULL COMMENT '本次任务失败原因，不写密钥或简历全文',
+    started_at DATETIME(6) NULL,
+    finished_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_import_task_id (task_id),
+    KEY idx_import_file_created (file_id, created_at, id),
+    KEY idx_import_status_created (status, created_at, id),
+    CONSTRAINT fk_import_task_file FOREIGN KEY (file_id) REFERENCES files (id),
+    CONSTRAINT ck_import_task_status
+        CHECK (status IN ('pending', 'running', 'completed', 'failed'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+    COMMENT='简历导入任务与持久化节点进度；不保存岗位评估结果';
+
+CREATE TABLE IF NOT EXISTS job_resumes (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    job_id BIGINT UNSIGNED NOT NULL,
+    file_id BIGINT UNSIGNED NOT NULL,
+    display_name VARCHAR(255) NOT NULL,
+    deleted_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_job_resume_file (job_id, file_id),
+    KEY idx_job_resume_visible (job_id, deleted_at, id),
+    CONSTRAINT fk_resume_job FOREIGN KEY (job_id) REFERENCES jobs (id),
+    CONSTRAINT fk_resume_file FOREIGN KEY (file_id) REFERENCES files (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='岗位简历关联；移除不删除历史评估';
