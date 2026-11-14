@@ -1,0 +1,62 @@
+# Ubuntu 环境：安装 Docker Engine 和 Docker Compose V2 后使用。
+# 1. 启动前修改下方两个密码；若密码含 $，在 Compose 文件中写成 $$。
+# 2. 校验：docker compose -f dockercompose.yaml config --quiet
+# 3. 启动：docker compose -f dockercompose.yaml up -d
+# 4. 状态：docker compose -f dockercompose.yaml ps
+# 5. 日志：docker compose -f dockercompose.yaml logs --tail=100 mysql
+# 6. 停止并保留数据：docker compose -f dockercompose.yaml down
+# 不要使用 down -v，除非确定要删除数据库数据。
+#
+# Ubuntu 宿主机后端连接：127.0.0.1:3306，数据库 hireagent，账号见 MYSQL_USER。
+# Windows/Navicat 公网直连：主机填写 Ubuntu 公网 IP，端口 3306。
+# 数据库用户名填写 MYSQL_USER（当前为 aparrot），密码填写 MYSQL_PASSWORD。
+# root 保持仅限本机登录；公网直连无需启用 Navicat 的 SSH 隧道。
+# 腾讯云安全组需允许你的客户端公网 IP 访问 TCP 3306；有主机防火墙时同步放行。
+# 仅对可信客户端 IP 放行，不要将安全组来源设为任意地址。
+# 未来同一 Compose 网络内的后端连接 mysql:3306。
+# 也可继续使用 SSH 隧道：
+# ssh -N -L 13306:127.0.0.1:3306 your_user@ubuntu_host
+# 然后 Windows 后端连接 127.0.0.1:13306。
+#
+# 首次启动空卷时创建数据库与账号；已有数据后修改以下密码不会修改库内密码。
+# 业务表由后续 Alembic 迁移创建，检查点表由 MySQL 检查点适配器初始化。
+# PDF 原件和页文本保存在应用目录，本文件仅部署 MySQL。
+# 本文件含数据库凭证，设置真实密码后请妥善保管，不要提交到公共仓库。
+name: hireagent
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 'root123456'
+      MYSQL_DATABASE: hireagent
+      MYSQL_USER: aparrot
+      MYSQL_PASSWORD: 'aparrot'
+      MYSQL_ROOT_HOST: localhost
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+    ports:
+      # 本机已占用 3306 时，将左侧宿主机端口改为 3307。
+      - "0.0.0.0:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP --host=127.0.0.1 --user="$${MYSQL_USER}" --database="$${MYSQL_DATABASE}" --execute="SELECT 1" >/dev/null 2>&1'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql_data:
