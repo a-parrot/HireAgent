@@ -20,7 +20,7 @@
 #
 # 首次启动空卷时创建数据库与账号；已有数据后修改以下密码不会修改库内密码。
 # 业务表由后续 Alembic 迁移创建，检查点表由 MySQL 检查点适配器初始化。
-# PDF 原件和页文本保存在应用目录，本文件仅部署 MySQL。
+# PDF 原件和页文本保存在应用目录，默认仅部署 MySQL，启用 backend profile 后可部署后端。
 # 本文件含数据库凭证，设置真实密码后请妥善保管，不要提交到公共仓库。
 name: hireagent
 
@@ -30,9 +30,9 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: 'root123456'
-      MYSQL_DATABASE: hireagent
-      MYSQL_USER: aparrot
-      MYSQL_PASSWORD: 'aparrot'
+      MYSQL_DATABASE: &db_name hireagent
+      MYSQL_USER: &db_user aparrot
+      MYSQL_PASSWORD: &db_password 'aparrot'
       MYSQL_ROOT_HOST: localhost
       TZ: UTC
     command:
@@ -58,5 +58,43 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Optional backend profile; default up -d still starts only MySQL.
+  # First fill ../backend/.env, build, and explicitly apply migrations.
+  backend:
+    profiles: [backend]
+    build:
+      context: ../backend
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: "8000"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: *db_name
+      DB_USER: *db_user
+      DB_PASSWORD: *db_password
+      STORAGE_DIR: /app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - backend_storage:/app/storage
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   mysql_data:
+  backend_storage:

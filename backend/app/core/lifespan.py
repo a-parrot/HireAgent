@@ -4,7 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.clients.meeting_client import MeetingClient
 from app.clients.mysql_client import MySQLClient
+from app.clients.notification_client import NotificationClient
+from app.services.schedule_service.actions import ActionService
+from app.services.workflow_service.runtime import WorkflowRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +17,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     client = MySQLClient(app.state.settings)
     app.state.mysql = client
+    runtime = WorkflowRuntime(client, app.state.settings)
+    app.state.runtime = runtime
+    app.state.actions = ActionService(client, MeetingClient(), NotificationClient())
     try:
         try:
             await client.ping()
@@ -25,6 +32,10 @@ async def lifespan(app: FastAPI):
                 "MySQL unavailable; verify DB_* configuration and network"
             ) from None
         logger.info("MySQL connected; application ready")
+        await runtime.start()
         yield
     finally:
-        await client.close()
+        try:
+            await runtime.close()
+        finally:
+            await client.close()

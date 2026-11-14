@@ -18,6 +18,7 @@ def test_health_readiness_and_shutdown():
     database = AsyncMock(spec=MySQLClient)
     with (
         patch("app.core.lifespan.MySQLClient", return_value=database),
+        patch("app.core.lifespan.WorkflowRuntime", return_value=AsyncMock()),
         TestClient(create_app(config())) as client,
     ):
         assert client.get("/api/health").json() == {"status": "ok"}
@@ -36,6 +37,7 @@ def test_startup_failure_disposes_pool():
     database.ping.side_effect = SQLAlchemyError("private password")
     with (
         patch("app.core.lifespan.MySQLClient", return_value=database),
+        patch("app.core.lifespan.WorkflowRuntime", return_value=AsyncMock()),
         pytest.raises(RuntimeError, match="MySQL unavailable") as error,
         TestClient(create_app(config())),
     ):

@@ -1,0 +1,137 @@
+-- 初始岗位配置，不含候选人、评分结果、时段或外部服务模拟数据。
+-- 串行执行；按 jobs.code 去重。编码已存在时整项跳过，不覆盖用户编辑或补发版本。
+USE hireagent;
+SET NAMES utf8mb4;
+SET time_zone = '+00:00';
+START TRANSACTION;
+SET @initial_rules = '{
+  "job_name": "海外项目负责人（钢结构 / MiC 模块化建筑方向）",
+  "responsibilities": "负责海外钢结构 / MiC 模块化建筑相关项目及项目或团队管理。",
+  "requirements": "相关领域经验；8 年以上工作经验或 5 年以上直接相关经验；具备项目或团队管理经历。",
+  "hard_conditions": {
+    "operator": "all",
+    "items": [
+      {
+        "id": "related_field",
+        "description": "具备相关领域经验",
+        "evidence_requirement": "简历中明确的相关工作或项目经历"
+      },
+      {
+        "id": "experience",
+        "operator": "any",
+        "items": [
+          {
+            "id": "work_years",
+            "description": "8 年以上工作经验",
+            "evidence_requirement": "工作起止时间及经历，无法确认时为信息不足"
+          },
+          {
+            "id": "direct_years",
+            "description": "5 年以上直接相关经验",
+            "evidence_requirement": "直接相关工作或项目时间，不重复累计重叠期间"
+          }
+        ]
+      },
+      {
+        "id": "management",
+        "description": "具备项目或团队管理经历",
+        "evidence_requirement": "明确的项目负责人、团队管理职责或经历"
+      }
+    ]
+  },
+  "dimensions": [
+    {
+      "id": "mic_experience",
+      "name": "直接钢结构 MiC / 模块化建筑经验",
+      "max_score": 30,
+      "criteria": "依据简历中与“直接钢结构 MiC / 模块化建筑经验”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    },
+    {
+      "id": "full_cycle",
+      "name": "钢结构项目全流程经验",
+      "max_score": 15,
+      "criteria": "依据简历中与“钢结构项目全流程经验”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    },
+    {
+      "id": "overseas",
+      "name": "海外项目或跨国协作经验",
+      "max_score": 15,
+      "criteria": "依据简历中与“海外项目或跨国协作经验”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    },
+    {
+      "id": "management",
+      "name": "项目 / 团队管理经验",
+      "max_score": 15,
+      "criteria": "依据简历中与“项目 / 团队管理经验”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    },
+    {
+      "id": "production_quality_safety",
+      "name": "生产、质量、安全或体系经验",
+      "max_score": 10,
+      "criteria": "依据简历中与“生产、质量、安全或体系经验”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    },
+    {
+      "id": "english_communication",
+      "name": "英语及跨文化沟通能力",
+      "max_score": 5,
+      "criteria": "依据简历中与“英语及跨文化沟通能力”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    },
+    {
+      "id": "project_results",
+      "name": "项目规模与可量化成果",
+      "max_score": 5,
+      "criteria": "依据简历中与“项目规模与可量化成果”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    },
+    {
+      "id": "fit_mobility",
+      "name": "岗位适配度与机动性",
+      "max_score": 5,
+      "criteria": "依据简历中与“岗位适配度与机动性”相关的明确经历、职责和成果评分，并说明给分理由；证据不足标记待核实。",
+      "evidence_requirement": "引用原文页码和片段，不以未提及推断满足"
+    }
+  ],
+  "review_threshold": 60,
+  "recommend_threshold": 75,
+  "sort_priority": [
+    {
+      "field": "total_score",
+      "direction": "desc"
+    },
+    {
+      "field": "mic_experience",
+      "direction": "desc"
+    },
+    {
+      "field": "overseas",
+      "direction": "desc"
+    },
+    {
+      "field": "management",
+      "direction": "desc"
+    }
+  ],
+  "tie_breaker": {
+    "field": "candidate_id",
+    "direction": "asc"
+  }
+}';
+INSERT INTO jobs (code, name, responsibilities, requirements, draft_rules)
+SELECT 'overseas_mic_project_lead',
+       '海外项目负责人（钢结构 / MiC 模块化建筑方向）',
+       JSON_UNQUOTE(JSON_EXTRACT(@initial_rules, '$.responsibilities')),
+       JSON_UNQUOTE(JSON_EXTRACT(@initial_rules, '$.requirements')),
+       @initial_rules
+WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE code = 'overseas_mic_project_lead');
+SET @created_job = ROW_COUNT();
+SET @initial_job_id = LAST_INSERT_ID();
+INSERT INTO job_rule_versions (job_id, version_no, rule_snapshot, published_by)
+SELECT @initial_job_id, 1, @initial_rules, 'initial_sql'
+WHERE @created_job = 1;
+COMMIT;

@@ -1,0 +1,90 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Form, Query, Request, UploadFile
+from fastapi import File as UploadFileParam
+from fastapi.responses import FileResponse
+from sqlalchemy import func, select
+
+from app.core.errors import BusinessError
+from app.models.mysql.entities import Batch, File
+from app.repositories.common import require, serialize
+from app.services.resume_service import resumes
+
+router = APIRouter(prefix="/api", tags=["简历"])
+
+
+@router.get("/batches")
+async def list_batches(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+):
+    async with request.app.state.mysql.session() as session:
+        total = await session.scalar(select(func.count()).select_from(Batch))
+        rows = (
+            await session.scalars(
+                select(Batch)
+                .order_by(Batch.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        ).all()
+        return {"items": [serialize(row) for row in rows], "total": total}
+
+
+@router.post("/batches", status_code=201)
+async def create_batch(
+    request: Request,
+    job_id: Annotated[int, Form()],
+    rule_version_id: Annotated[int, Form()],
+    files: Annotated[list[UploadFile], UploadFileParam()],
+    name: Annotated[str | None, Form(max_length=200)] = None,
+):
+    return await resumes.create_batch(
+        request.app.state.mysql,
+        request.app.state.settings,
+        job_id,
+        rule_version_id,
+        files,
+        name,
+    )
+
+
+@router.get("/batches/{batch_id}")
+async def batch(request: Request, batch_id: int):
+    return await resumes.batch_detail(request.app.state.mysql, batch_id)
+
+
+@router.get("/candidates")
+async def candidates(
+    request: Request,
+    batch_id: int,
+    status: str | None = None,
+    recommendation: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+):
+    return await resumes.candidates(
+        request.app.state.mysql, batch_id, status, recommendation, page, page_size
+    )
+
+
+@router.get("/candidates/{candidate_id}")
+async def candidate(request: Request, candidate_id: int):
+    return await resumes.candidate_detail(request.app.state.mysql, candidate_id)
+
+
+@router.get("/files/{file_id}")
+async def original(request: Request, file_id: int):
+    async with request.app.state.mysql.session() as session:
+        file = await require(session, File, file_id)
+        path = resumes.safe_path(request.app.state.settings, file.storage_path)
+        filename = file.original_name
+    if not path.is_file():
+        raise BusinessError("PDF 原件缺失，请恢复备份", 404)
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=filename,
+        content_disposition_type="inline",
+    )
