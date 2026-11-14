@@ -486,43 +486,6 @@
             }
           }
         }
-      },
-      "post": {
-        "tags": [
-          "简历"
-        ],
-        "summary": "Create Batch",
-        "operationId": "create_batch_api_batches_post",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_create_batch_api_batches_post"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/batches/{batch_id}": {
@@ -1089,13 +1052,13 @@
         }
       }
     },
-    "/api/jobs/{job_id}/resume-batches": {
+    "/api/jobs/{job_id}/evaluate": {
       "post": {
         "tags": [
           "岗位简历"
         ],
-        "summary": "Evaluation",
-        "operationId": "evaluation_api_jobs__job_id__resume_batches_post",
+        "summary": "Start Evaluation",
+        "operationId": "start_evaluation_api_jobs__job_id__evaluate_post",
         "parameters": [
           {
             "name": "job_id",
@@ -1112,13 +1075,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EvaluationInput"
+                "$ref": "#/components/schemas/StartEvaluationInput"
               }
             }
           }
         },
         "responses": {
-          "201": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -1167,6 +1130,60 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/candidates/{candidate_id}/export": {
+      "get": {
+        "tags": [
+          "工作流"
+        ],
+        "summary": "Export Candidate",
+        "operationId": "export_candidate_api_candidates__candidate_id__export_get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1877,45 +1894,6 @@
         ],
         "title": "ActionApproval"
       },
-      "Body_create_batch_api_batches_post": {
-        "properties": {
-          "job_id": {
-            "type": "integer",
-            "title": "Job Id"
-          },
-          "rule_version_id": {
-            "type": "integer",
-            "title": "Rule Version Id"
-          },
-          "files": {
-            "items": {
-              "type": "string",
-              "contentMediaType": "application/octet-stream"
-            },
-            "type": "array",
-            "title": "Files"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "job_id",
-          "rule_version_id",
-          "files"
-        ],
-        "title": "Body_create_batch_api_batches_post"
-      },
       "Body_upload_api_jobs__job_id__resumes_post": {
         "properties": {
           "files": {
@@ -1946,42 +1924,6 @@
           "files"
         ],
         "title": "Body_upload_api_jobs__job_id__resumes_post"
-      },
-      "EvaluationInput": {
-        "properties": {
-          "resume_ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "maxItems": 1000,
-            "minItems": 1,
-            "title": "Resume Ids"
-          },
-          "rule_version_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Rule Version Id"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "resume_ids",
-          "rule_version_id"
-        ],
-        "title": "EvaluationInput"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2244,6 +2186,38 @@
           "ends_at"
         ],
         "title": "SlotInput"
+      },
+      "StartEvaluationInput": {
+        "properties": {
+          "resume_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Resume Ids"
+          },
+          "rule_version_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Rule Version Id"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resume_ids",
+          "rule_version_id",
+          "request_id"
+        ],
+        "title": "StartEvaluationInput"
       },
       "ValidationError": {
         "properties": {

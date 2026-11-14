@@ -86,19 +86,14 @@ def csv_safe(value):
     return value
 
 
-async def export(db, batch_id, format):
+async def export(db, batch_id, format, candidate_id=None):
     async with db.session() as session:
         batch = await require(session, Batch, batch_id)
         batch_data = serialize(batch)
-        ids = list(
-            (
-                await session.scalars(
-                    select(Candidate.id)
-                    .where(Candidate.batch_id == batch_id)
-                    .order_by(Candidate.id)
-                )
-            ).all()
-        )
+        query = select(Candidate.id).where(Candidate.batch_id == batch_id)
+        if candidate_id is not None:
+            query = query.where(Candidate.id == candidate_id)
+        ids = list((await session.scalars(query.order_by(Candidate.id))).all())
     items = [await candidate_detail(db, i) for i in ids]
     if format == "json":
         return json.dumps(

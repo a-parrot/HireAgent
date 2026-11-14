@@ -22,18 +22,8 @@ const router = createRouter({
           component: () => import('@/views/jobs/JobDetailView.vue'),
           meta: { title: '岗位详情' },
         },
-        {
-          path: 'batches',
-          name: 'batch-list',
-          component: () => import('@/views/resumes/BatchListView.vue'),
-          meta: { title: '评估批次' },
-        },
-        {
-          path: 'batches/:id',
-          name: 'batch-detail',
-          component: () => import('@/views/resumes/BatchDetailView.vue'),
-          meta: { title: '批次详情' },
-        },
+        { path: 'batches/:pathMatch(.*)*', redirect: '/resumes' },
+        { path: 'batches', redirect: '/resumes' },
         {
           path: 'candidates/:id',
           name: 'candidate-detail',

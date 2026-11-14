@@ -59,7 +59,7 @@ defineExpose({ open })
       <RuleEditor ref="ruleEditorRef" v-model="form.draft_rules" />
       <el-form-item label="发布人" style="margin-top: 24px"><el-input v-model="form.operator_name" maxlength="128" placeholder="创建并发布时填写；仅保存草稿无需填写" style="max-width: 360px" /></el-form-item>
     </el-form>
-    <template #footer><div class="dialog-footer"><span class="muted">发布后，新的评估批次自动带入这套规则。</span><div><el-button :disabled="submitting" @click="close">取消</el-button><el-button :loading="submitting" @click="submit(false)">保存草稿</el-button><el-button type="primary" :loading="submitting" @click="submit(true)">创建并发布</el-button></div></div></template>
+    <template #footer><div class="dialog-footer"><span class="muted">发布后，新的评估自动带入这套规则。</span><div><el-button :disabled="submitting" @click="close">取消</el-button><el-button :loading="submitting" @click="submit(false)">保存草稿</el-button><el-button type="primary" :loading="submitting" @click="submit(true)">创建并发布</el-button></div></div></template>
   </el-dialog>
 </template>
 <style scoped>

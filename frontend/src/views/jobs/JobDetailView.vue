@@ -222,7 +222,7 @@ function viewSnapshot(version: JobRuleVersion) {
           type="info"
           :closable="false"
           show-icon
-          title="发布后，新批次自动带入这套评分标准；已有批次的规则和结果不会改变。"
+          title="发布后，新评估自动带入这套评分标准；已有评估的规则和结果不会改变。"
           style="margin-bottom: 16px"
         />
         <el-form label-width="90px">

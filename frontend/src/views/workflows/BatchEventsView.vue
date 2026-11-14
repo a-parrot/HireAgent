@@ -124,7 +124,7 @@ function eventTypeText(type: string): string {
       type="info"
       :closable="false"
       show-icon
-      title="日志使用 after_id 游标分页：点击“加载更多”获取后续事件；批次执行中可开启自动刷新增量拉取。"
+      title="日志使用 after_id 游标分页：点击“加载更多”获取后续事件；评估执行中可开启自动刷新增量拉取。"
       style="margin-top: 16px"
     />
   </div>

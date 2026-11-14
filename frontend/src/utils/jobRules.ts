@@ -54,7 +54,7 @@ export function ruleIssues(rules: JobRules): string[] {
   const ids: string[] = []
   const visit = (node: ConditionNode) => {
     if (node.items) {
-      if (!node.items.length) issues.push('请添加至少一条硬条件，或删除空的条件组')
+      if (!node.items.length) issues.push('请添加至少一条硬条件')
       node.items.forEach(visit)
     } else {
       if (!node.description?.trim()) issues.push('请填写硬条件内容')
@@ -63,16 +63,35 @@ export function ruleIssues(rules: JobRules): string[] {
   }
   visit(rules.hard_conditions)
   if (new Set(ids).size !== ids.length) issues.push('硬条件标识重复')
-  if (!rules.dimensions.length) issues.push('请添加至少一个评分维度')
-  if (new Set(rules.dimensions.map(d => d.id)).size !== rules.dimensions.length) issues.push('评分维度标识重复')
+  if (!rules.dimensions.length) issues.push('请添加至少一项匹配评分')
+  if (new Set(rules.dimensions.map(d => d.id)).size !== rules.dimensions.length) issues.push('匹配评分标识重复')
   rules.dimensions.forEach((d, i) => {
-    if (!d.name.trim()) issues.push(`请填写第 ${i + 1} 个评分维度的名称`)
-    if (!Number.isInteger(d.max_score) || d.max_score <= 0) issues.push(`第 ${i + 1} 个维度的满分须为正整数`)
+    if (!d.name.trim()) issues.push(`请填写第 ${i + 1} 项评分内容`)
+    if (!Number.isInteger(d.max_score) || d.max_score <= 0) issues.push(`第 ${i + 1} 项评分的分值须为正整数`)
     if (!d.criteria.trim()) issues.push(`请填写「${d.name || `维度 ${i + 1}`}」的得分标准`)
   })
-  if (rules.dimensions.reduce((sum, d) => sum + (d.max_score || 0), 0) !== 100) issues.push('评分维度满分合计须为 100 分')
+  if (rules.dimensions.reduce((sum, d) => sum + (d.max_score || 0), 0) !== 100) issues.push('匹配评分合计须为 100 分')
   if (!(rules.review_threshold >= 0 && rules.review_threshold < rules.recommend_threshold && rules.recommend_threshold <= 100)) issues.push('阈值须满足：0 ≤ 人工复核最低分 < 推荐面试最低分 ≤ 100')
   const fields = rules.sort_priority.map(s => s.field)
   if (fields[0] !== 'total_score' || new Set(fields).size !== fields.length || fields.some(f => f !== 'total_score' && !rules.dimensions.some(d => d.id === f))) issues.push('排期优先级引用了无效或重复的维度')
   return [...new Set(issues)]
+}
+
+
+// Legacy all/any groups remain intact until their single displayed row is edited.
+export function conditionContent(node: ConditionNode): string {
+  if (!node.items) return node.description || ''
+  const joiner = node.operator === 'any' ? ' 或 ' : ' 且 '
+  return node.items.map(item => item.items ? `（${conditionContent(item)}）` : conditionContent(item)).join(joiner)
+}
+export function readEditorRules(value: Record<string, unknown> | null): JobRules {
+  const rules = readRules(value)
+  if (rules.hard_conditions.operator === 'any') rules.hard_conditions = { operator: 'all', items: [rules.hard_conditions] }
+  return rules
+}
+export function conditionWithContent(node: ConditionNode, content: string): ConditionNode {
+  return node.items ? { id: newId('condition'), description: content, evidence_requirement: '' } : { ...node, description: content }
+}
+export function scoreWithContent(dimension: ScoreDimension, content: string): ScoreDimension {
+  return { ...dimension, name: content, criteria: content }
 }

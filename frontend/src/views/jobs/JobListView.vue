@@ -38,11 +38,11 @@ function dimensionSummary(job: Job) {
 }
 async function changeStatus(job: Job) {
   const enabled = job.status === 'active'
-  try { await ElMessageBox.confirm(enabled ? `停用「${job.name}」后，不再创建新批次，已有评估仍保留。` : `重新启用「${job.name}」？`, enabled ? '停用岗位' : '启用岗位', { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }) } catch { return }
+  try { await ElMessageBox.confirm(enabled ? `停用「${job.name}」后，不再创建新评估，已有评估仍保留。` : `重新启用「${job.name}」？`, enabled ? '停用岗位' : '启用岗位', { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }) } catch { return }
   try { await (enabled ? disableJob(job.id) : enableJob(job.id)); ElMessage.success(enabled ? '岗位已停用' : '岗位已启用'); await load() } catch (err) { if (err instanceof ApiError) ElMessage.error(err.message) }
 }
 async function remove(job: Job) {
-  try { await ElMessageBox.confirm(`删除「${job.name}」后，将从岗位列表移除且无法再创建新批次。已有规则版本和历史评估仍保留。`, '删除岗位', { confirmButtonText: '确认删除', cancelButtonText: '保留岗位', type: 'warning', confirmButtonClass: 'el-button--danger' }) } catch { return }
+  try { await ElMessageBox.confirm(`删除「${job.name}」后，将从岗位列表移除且无法再创建新评估。已有规则版本和历史评估仍保留。`, '删除岗位', { confirmButtonText: '确认删除', cancelButtonText: '保留岗位', type: 'warning', confirmButtonClass: 'el-button--danger' }) } catch { return }
   try { await deleteJob(job.id); ElMessage.success('岗位已删除，历史评估已保留'); await load() } catch (err) { if (err instanceof ApiError) ElMessage.error(err.message) }
 }
 function onSaved(jobId: string) { openJob(jobId) }

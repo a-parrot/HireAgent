@@ -304,7 +304,7 @@ function onPreviewInput() {
     <el-card class="page-card">
       <template #header>
         <div class="toolbar" style="margin-bottom: 0">
-          <span class="section-title" style="margin: 0">批次排期</span>
+          <span class="section-title" style="margin: 0">评估记录排期</span>
           <el-tag v-if="batch" :type="batchStatusTypes[batch.status]">
             {{ batchStatusLabels[batch.status] }}
           </el-tag>
@@ -314,8 +314,8 @@ function onPreviewInput() {
         </div>
       </template>
       <el-descriptions v-if="batch" :column="3" border size="small">
-        <el-descriptions-item label="批次 ID"><span class="mono">{{ batch.id }}</span></el-descriptions-item>
-        <el-descriptions-item label="批次名称">{{ batch.name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="评估记录 ID"><span class="mono">{{ batch.id }}</span></el-descriptions-item>
+        <el-descriptions-item label="评估记录名称">{{ batch.name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="候选人总数">{{ batch.total }}</el-descriptions-item>
       </el-descriptions>
       <el-alert
@@ -323,7 +323,7 @@ function onPreviewInput() {
         type="info"
         :closable="false"
         show-icon
-        title="批次评估尚未完成，评估完成后才能执行统一排期。"
+        title="评估记录评估尚未完成，评估完成后才能执行统一排期。"
         style="margin-top: 12px"
       />
     </el-card>

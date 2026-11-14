@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { Back, View } from '@element-plus/icons-vue'
 import { pdfUrl, retryCandidate } from '@/api/batches'
 import { getCandidate, submitReview } from '@/api/reviews'
+import { exportCandidate } from '@/api/workflows'
 import { ApiError } from '@/api/http'
 import {
   actionStatusLabels,
@@ -151,8 +152,10 @@ const canReview = computed(
 <template>
   <div v-loading="loading">
     <div class="toolbar">
-      <el-button :icon="Back" @click="router.back()">返回</el-button>
+      <el-button :icon="Back" @click="router.push({ path: '/resumes', query: { job_id: candidate?.job_id } })">返回简历评估</el-button>
       <div class="spacer" />
+      <el-button v-if="candidate" @click="router.push(`/events/${candidate.batch_id}`)">执行日志</el-button>
+      <el-dropdown v-if="candidate" @command="(format: 'json' | 'csv') => exportCandidate(candidateId, format)"><el-button>导出结果</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="json">JSON</el-dropdown-item><el-dropdown-item command="csv">CSV</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
       <el-button v-if="candidate?.processing_status === 'failed'" type="danger" plain @click="retry">
         重试
       </el-button>
@@ -180,7 +183,6 @@ const canReview = computed(
           <el-descriptions-item label="审核状态">{{ reviewStatusLabels[candidate.review_status] }}</el-descriptions-item>
           <el-descriptions-item label="排期状态">{{ scheduleStatusLabels[candidate.schedule_status] }}</el-descriptions-item>
           <el-descriptions-item label="重试次数">{{ candidate.retry_count }}</el-descriptions-item>
-          <el-descriptions-item label="批次 ID"><span class="mono">{{ candidate.batch_id }}</span></el-descriptions-item>
           <el-descriptions-item label="文件 ID"><span class="mono">{{ candidate.file_id }}</span></el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ formatTime(candidate.started_at) }}</el-descriptions-item>
           <el-descriptions-item label="完成时间">{{ formatTime(candidate.completed_at) }}</el-descriptions-item>

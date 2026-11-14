@@ -148,3 +148,10 @@ LIBREOFFICE_BIN 默认 soffice，也可以指定可执行文件路径。Dockerfi
 数据库 head 为 008：007 对应 sql/04-resume-import.sql，008 对应 sql/05-job-resumes.sql。新库使用新版 01-schema.sql（14 表）或 Alembic 初始化；旧 SQL 库只执行尚未应用的 04、05。不要对已手工升级的库重复运行相同 Alembic 迁移；先 verify_schema 并核对约束和默认值后接管。
 
 当前配置库已存在 04 的结构，本轮仅补建 job_resumes 并回填历史关联。已有 jobs/files/batches/candidates 各 1 条保持不变，未修改历史评分、原件或规则，也未启动真实简历评估。数据库未执行 stamp。
+
+
+## 简历统一评估（移除独立批次管理）
+
+前端统一从 /resumes 管理简历、确认规则并开始评估，移除独立批次列表/详情页面及手动命名/创建步骤。POST /api/jobs/{job_id}/evaluate 负责一次提交并排队，同 request_id 持久化去重；列表返回 latest_evaluation，详情保留历史评估、人工审核、日志及单人导出。旧上传创建批次接口已移除。
+
+底层 batches 表及已有记录保留，作为规则快照、执行恢复和排期关联，不面向用户管理；本轮无数据库结构修改、无真实模型调用。面试排期仍按原执行记录稳定排序，避免改动已有预约。

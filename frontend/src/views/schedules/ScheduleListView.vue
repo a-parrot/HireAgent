@@ -33,13 +33,13 @@ onMounted(load)
 <template>
   <div>
     <div class="toolbar">
-      <span class="muted">选择评估完成的批次进行时段管理与统一排期</span>
+      <span class="muted">选择评估完成的评估记录进行时段管理与统一排期</span>
     </div>
     <el-table :data="items" v-loading="loading" border stripe>
-      <el-table-column label="批次" min-width="200">
+      <el-table-column label="评估记录" min-width="200">
         <template #default="{ row }">{{ row.name || row.id }}</template>
       </el-table-column>
-      <el-table-column label="批次 ID" width="140">
+      <el-table-column label="评估记录 ID" width="140">
         <template #default="{ row }"><span class="mono">{{ row.id }}</span></template>
       </el-table-column>
       <el-table-column label="状态" width="110">

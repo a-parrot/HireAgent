@@ -2,9 +2,30 @@ from typing import Literal
 
 from fastapi import APIRouter, Query, Request, Response
 
+from app.models.mysql.entities import Candidate
+from app.repositories.common import require
 from app.services.workflow_service import operations
 
 router = APIRouter(prefix="/api", tags=["工作流"])
+
+
+@router.get("/candidates/{candidate_id}/export")
+async def export_candidate(
+    request: Request, candidate_id: int, format: Literal["json", "csv"] = "json"
+):
+    async with request.app.state.mysql.session() as session:
+        candidate = await require(session, Candidate, candidate_id)
+        batch_id = candidate.batch_id
+    data, media_type = await operations.export(
+        request.app.state.mysql, batch_id, format, candidate_id=candidate_id
+    )
+    return Response(
+        data,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="candidate-{candidate_id}.{format}"'
+        },
+    )
 
 
 @router.post("/batches/{batch_id}/run", status_code=202)

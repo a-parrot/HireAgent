@@ -1,7 +1,4 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Form, Query, Request, UploadFile
-from fastapi import File as UploadFileParam
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
@@ -30,24 +27,6 @@ async def list_batches(
             )
         ).all()
         return {"items": [serialize(row) for row in rows], "total": total}
-
-
-@router.post("/batches", status_code=201)
-async def create_batch(
-    request: Request,
-    job_id: Annotated[int, Form()],
-    rule_version_id: Annotated[int, Form()],
-    files: Annotated[list[UploadFile], UploadFileParam()],
-    name: Annotated[str | None, Form(max_length=200)] = None,
-):
-    return await resumes.create_batch(
-        request.app.state.mysql,
-        request.app.state.settings,
-        job_id,
-        rule_version_id,
-        files,
-        name,
-    )
 
 
 @router.get("/batches/{batch_id}")

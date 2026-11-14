@@ -102,7 +102,7 @@ export const actionStatusTypes: Record<string, 'info' | 'primary' | 'success' | 
 }
 
 export const eventTypeLabels: Record<string, string> = {
-  batch_started: '批次启动',
+  batch_started: '评估启动',
   node_started: '节点开始',
   node_succeeded: '节点成功',
   node_failed: '节点失败',

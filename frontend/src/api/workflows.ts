@@ -15,3 +15,7 @@ export async function listBatchEvents(
 export function exportBatch(batchId: string, format: 'json' | 'csv'): void {
   downloadFile(`/api/batches/${batchId}/export?format=${format}`)
 }
+
+export function exportCandidate(id: string, format: 'json' | 'csv'): void {
+  downloadFile(`/api/candidates/${id}/export?format=${format}`)
+}
