@@ -42,6 +42,7 @@ class Job(Base):
     draft_rules = Column(JSON, nullable=True)
     status = Column(String(16), nullable=False, default="active")
     draft_version = Column(UInt, nullable=False, default=1)
+    deleted_at = Column(Timestamp, nullable=True)
     created_at = Column(Timestamp, nullable=False, default=utcnow)
     updated_at = Column(Timestamp, nullable=False, default=utcnow, onupdate=utcnow)
     __table_args__ = (

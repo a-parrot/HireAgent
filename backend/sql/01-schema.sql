@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     draft_rules JSON NULL COMMENT '硬条件、维度、阈值及排序配置；草稿可未完善',
     status VARCHAR(16) NOT NULL DEFAULT 'active' COMMENT 'active/disabled',
     draft_version INT UNSIGNED NOT NULL DEFAULT 1 COMMENT '编辑乐观锁版本',
+    deleted_at DATETIME(6) NULL COMMENT '软删除时间，保留历史版本和批次',
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),

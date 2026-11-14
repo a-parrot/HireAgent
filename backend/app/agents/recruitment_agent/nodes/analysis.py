@@ -1,13 +1,7 @@
 import re
-from pathlib import Path
 
+from app.prompts.prompt_loader import load_prompt
 from app.schemas.agents import Analysis, Evaluation, Verification
-
-PROMPTS = Path(__file__).resolve().parents[3] / "prompts"
-
-
-def prompt(name):
-    return (PROMPTS / (name + ".md")).read_text(encoding="utf-8")
 
 
 def redact(text):
@@ -28,7 +22,7 @@ class ResumeAnalysisAgent:
         output = {"name": None, "facts": [], "evidence": [], "missing_fields": []}
         for index, chunk in enumerate(chunks):
             result = await llm.generate(
-                prompt("resume_analysis"),
+                load_prompt("resume_analysis"),
                 {"rules": rules, "pages": [chunk], "chunk_prefix": f"p{index}_"},
                 Analysis,
             )
@@ -42,7 +36,7 @@ class CandidateEvaluationAgent:
     async def run(self, llm, rules, analysis):
         # Chunk-local omissions are not global missing fields; the evaluator sees all facts.
         return await llm.generate(
-            prompt("candidate_evaluation"),
+            load_prompt("candidate_evaluation"),
             {
                 "rules": rules,
                 "facts": analysis["facts"],
@@ -55,7 +49,7 @@ class CandidateEvaluationAgent:
 class EvaluationReviewAgent:
     async def run(self, llm, rules, analysis, evaluation):
         return await llm.generate(
-            prompt("evaluation_review"),
+            load_prompt("evaluation_review"),
             {
                 "rules": rules,
                 "facts": analysis["facts"],

@@ -56,7 +56,11 @@ async def create_batch(db, config, job_id, version_id, uploads, name):
         async with db.session() as session:
             job = await require(session, Job, job_id, lock=True)
             version = await require(session, JobRuleVersion, version_id)
-            if job.status != "active" or version.job_id != job_id:
+            if (
+                job.deleted_at is not None
+                or job.status != "active"
+                or version.job_id != job_id
+            ):
                 raise BusinessError("岗位已停用或规则版本不属于岗位")
             batch = Batch(
                 name=name or f"{job.name} 简历批次",

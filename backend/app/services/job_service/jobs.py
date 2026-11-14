@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from app.core.errors import BusinessError
-from app.models.mysql.entities import Job, JobRuleVersion
+from app.models.mysql.entities import Job, JobRuleVersion, utcnow
 from app.repositories.common import serialize
 from app.repositories.job_repo import jobs as repo
 
@@ -21,8 +21,10 @@ def validate_rules(rules):
         raise BusinessError("评分维度 ID 必须非空且唯一")
     for dim in dims:
         if (
-            not dim.get("name")
-            or not dim.get("criteria")
+            not isinstance(dim.get("name"), str)
+            or not dim["name"].strip()
+            or not isinstance(dim.get("criteria"), str)
+            or not dim["criteria"].strip()
             or type(dim.get("max_score")) is not int
             or dim["max_score"] <= 0
         ):
@@ -54,11 +56,20 @@ def validate_rules(rules):
         if not isinstance(node, dict):
             raise BusinessError("硬条件格式无效")
         if "items" in node:
-            if node.get("operator") not in ("all", "any") or not node["items"]:
+            if (
+                node.get("operator") not in ("all", "any")
+                or not isinstance(node["items"], list)
+                or not node["items"]
+            ):
                 raise BusinessError("硬条件仅支持非空 all/any 组合")
             for child in node["items"]:
                 condition(child)
-        elif not node.get("id") or not node.get("description"):
+        elif (
+            not isinstance(node.get("id"), str)
+            or not node["id"].strip()
+            or not isinstance(node.get("description"), str)
+            or not node["description"].strip()
+        ):
             raise BusinessError("硬条件必须包含 ID 与说明")
 
     condition(rules.get("hard_conditions"))
@@ -80,16 +91,38 @@ def condition_ids(node):
     return [node["id"]]
 
 
-async def list_jobs(db, page, page_size):
+async def list_jobs(db, page, page_size, keyword=None, status=None):
     async with db.session() as session:
-        rows, count = await repo.page_jobs(session, page, page_size)
-        return {"items": [serialize(r) for r in rows], "total": count}
+        rows, count = await repo.page_jobs(session, page, page_size, keyword, status)
+        versions = await repo.latest_versions(session, [r.id for r in rows])
+        return {
+            "items": [
+                {**serialize(r), "latest_published_version": versions.get(r.id)}
+                for r in rows
+            ],
+            "total": count,
+        }
 
 
 async def create_job(db, data, code=None):
     async with db.session() as session:
         job = Job(code=code or uuid4().hex, **data.model_dump())
         session.add(job)
+        await session.flush()
+        return serialize(job)
+
+
+async def delete_job(db, job_id):
+    async with db.session() as session:
+        job = await repo.get_job(session, job_id, lock=True)
+        job.deleted_at, job.status = utcnow(), "disabled"
+        job.draft_version += 1
+
+
+async def enable(db, job_id):
+    async with db.session() as session:
+        job = await repo.get_job(session, job_id, lock=True)
+        job.status = "active"
         await session.flush()
         return serialize(job)
 

@@ -10,6 +10,13 @@ class JobCreate(BaseModel):
     requirements: str | None = None
     draft_rules: dict[str, Any] | None = None
 
+    @field_validator("name")
+    @classmethod
+    def trim_name(cls, value):
+        if not value.strip():
+            raise ValueError("岗位名称不能为空")
+        return value.strip()
+
 
 class JobPatch(BaseModel):
     draft_version: int = Field(ge=1)
@@ -17,6 +24,13 @@ class JobPatch(BaseModel):
     responsibilities: str | None = None
     requirements: str | None = None
     draft_rules: dict[str, Any] | None = None
+
+    @field_validator("name")
+    @classmethod
+    def trim_name(cls, value):
+        if value is not None and not value.strip():
+            raise ValueError("岗位名称不能为空")
+        return value.strip() if value is not None else None
 
 
 class PublishRequest(BaseModel):

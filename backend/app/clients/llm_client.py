@@ -3,9 +3,11 @@ import json
 import re
 
 import httpx
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import ValidationError
 
 from app.core.errors import BusinessError
+from app.prompts.prompt_loader import render_messages
 
 
 class LLMClient:
@@ -17,6 +19,24 @@ class LLMClient:
 
     async def generate(self, prompt, payload, schema):
         config = self.config
+        if isinstance(prompt, ChatPromptTemplate):
+            try:
+                messages = render_messages(prompt, payload, schema)
+            except ValueError:
+                raise BusinessError(
+                    "提示词模板缺少必要输入，请检查节点参数", 500
+                ) from None
+        else:
+            # Keep simple diagnostic scripts compatible with string prompts.
+            messages = [
+                {
+                    "role": "system",
+                    "content": prompt
+                    + "\n只输出 JSON，遵循以下 schema："
+                    + json.dumps(schema.model_json_schema(), ensure_ascii=False),
+                },
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ]
         if (
             not config.llm_base_url
             or not config.llm_model
@@ -43,20 +63,7 @@ class LLMClient:
                             else {}
                         ),
                         "response_format": {"type": "json_object"},
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": prompt
-                                + "\n只输出 JSON，遵循以下 schema："
-                                + json.dumps(
-                                    schema.model_json_schema(), ensure_ascii=False
-                                ),
-                            },
-                            {
-                                "role": "user",
-                                "content": json.dumps(payload, ensure_ascii=False),
-                            },
-                        ],
+                        "messages": messages,
                     },
                 )
                 if response.status_code in (429, 500, 502, 503, 504) and attempt < 2:

@@ -1,6 +1,6 @@
 # HireAgent MySQL 数据库设计
 
-目标：MySQL 8.4、InnoDB、utf8mb4；覆盖现有方案全部招聘功能。本目录提供 SQL 设计与初始化脚本，不代表 ORM、迁移或业务功能已实现。本次不连接或修改实际服务器数据库。
+目标：MySQL 8.4、InnoDB、utf8mb4；覆盖现有方案全部招聘功能。本目录提供 SQL 设计、初始化和增量升级脚本；对应 ORM 与 Alembic 位于 backend/app/models 和 backend/alembic。直接执行 SQL 与 Alembic 迁移是两种初始化入口，不要重复建表。
 
 ## 文件与执行顺序
 
@@ -81,10 +81,16 @@ LangGraph 检查点通过 langgraph-checkpoint-mysql 的 AIOMySQLSaver.setup 初
 
 数据库业务写入和检查点不在同一事务。节点恢复时先读取 node_executions 的成功输出，避免业务已提交但检查点未保存导致重复执行；人工恢复结果独立记录在 reviews，后端启动时可重试失败恢复而不重复作出审批。
 
-后续 T01–T16 任务以本设计为字段和关系基线，按阶段把对应表实现为 SQLAlchemy 模型和 Alembic 迁移，不重复设计另一套字段。SQL 直接初始化和 Alembic 是两种入口，不得初始化后再无条件执行重复建表迁移。未来只有在迁移确实覆盖同一完整结构、核对 schema 一致后才可 stamp 对应 revision；当前尚无迁移 revision，不执行 stamp head。已有部分表时应通过增量迁移对齐。
+后续 T01–T16 任务以本设计为字段和关系基线，按阶段把对应表实现为 SQLAlchemy 模型和 Alembic 迁移，不重复设计另一套字段。SQL 直接初始化和 Alembic 是两种入口，不得初始化后再无条件执行重复建表迁移。未来只有在迁移确实覆盖同一完整结构、核对 schema 一致后才可 stamp 对应 revision；当前完整结构对应 revision 006；已有旧 SQL 库先核对并补 deleted_at，再进行迁移接管，不盲目 stamp head。已有部分表时应通过增量迁移对齐。
 
 ## 验证范围
 
 本次检查脚本的表创建顺序、外键引用、索引命名、12 表覆盖、初始维度合计及重复导入语义。当前本机 Docker Engine 未运行，尚未在真实 MySQL 8.4 执行 SQL；请在目标测试库完成建表、重复初始化、初始规则导入及约束验证后再用于正式数据。
 
 参考：[MySQL CREATE TABLE](https://dev.mysql.com/doc/refman/8.4/en/create-table.html)、[外键](https://dev.mysql.com/doc/refman/8.4/en/create-table-foreign-keys.html)、[CHECK](https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html)。
+
+## 岗位删除字段升级
+
+新版 01-schema.sql 包含 jobs.deleted_at。旧 SQL 库可在确认没有该列后执行一次 03-job-soft-delete.sql；已经执行迁移 006 或使用新版初始化脚本时不要重复执行。该列仅用于隐藏岗位，历史规则与批次不删除，规则自定义仍复用 JSON 字段。
+
+2026-11-14 岗位管理升级：已对当前配置库补充 nullable jobs.deleted_at，并只读核对原有 1 个岗位仍在；未修改其名称、规则或历史数据。该记录仅适用于当前配置库，其他部署环境仍需检查该列。

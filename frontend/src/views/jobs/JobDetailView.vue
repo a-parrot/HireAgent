@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { useRoute, onBeforeRouteLeave } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleEditor from '@/components/jobs/RuleEditor.vue'
 import { getJob, patchJob, publishJob } from '@/api/jobs'
 import { ApiError } from '@/api/http'
 import { formatTime } from '@/utils/format'
 import type { JobDetail, JobRuleVersion } from '@/api/types'
+import { readRules, ruleIssues } from '@/utils/jobRules'
 
 const route = useRoute()
 const jobId = route.params.id as string
@@ -19,7 +20,7 @@ const saving = ref(false)
 const publishDialogVisible = ref(false)
 const publishing = ref(false)
 const snapshotVisible = ref(false)
-const snapshotContent = ref('')
+const snapshotRules = ref<Record<string, unknown> | null>(null)
 const snapshotTitle = ref('')
 
 const editForm = reactive({
@@ -43,7 +44,15 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(async () => { await load(); if (route.query.edit === '1' && job.value) startEdit() })
+
+onBeforeRouteLeave(async () => {
+  if (!editing.value) return true
+  try {
+    await ElMessageBox.confirm('未保存的岗位名称和规则会被放弃。', '离开编辑？', { confirmButtonText: '放弃修改并离开', cancelButtonText: '继续编辑' })
+    return true
+  } catch { return false }
+})
 
 function startEdit() {
   const j = job.value
@@ -57,16 +66,17 @@ function startEdit() {
 
 async function saveEdit() {
   if (!job.value) return
+  if (!editForm.name.trim()) { ElMessage.warning('请输入岗位名称'); return }
   const parsed = ruleEditorRef.value?.getValid()
   if (parsed === undefined) {
-    ElMessage.error('评估规则 JSON 格式错误，请先修正')
+    ElMessage.error('请检查评分规则后重试')
     return
   }
   saving.value = true
   try {
     await patchJob(jobId, {
       draft_version: job.value.draft_version,
-      name: editForm.name,
+      name: editForm.name.trim(),
       responsibilities: editForm.responsibilities || null,
       requirements: editForm.requirements || null,
       draft_rules: parsed,
@@ -79,6 +89,19 @@ async function saveEdit() {
   } finally {
     saving.value = false
   }
+}
+
+function beginPublish() {
+  if (!job.value) return
+  const issues = ruleIssues(readRules(job.value.draft_rules))
+  if (issues.length) { ElMessage.warning(issues[0]); startEdit(); return }
+  publishDialogVisible.value = true
+}
+
+async function saveAndPublish() {
+  if (!ruleEditorRef.value?.getValid(true)) { ElMessage.warning('请完善规则后发布，也可先保存草稿'); return }
+  await saveEdit()
+  if (!editing.value) beginPublish()
 }
 
 async function confirmPublish() {
@@ -106,7 +129,7 @@ async function confirmPublish() {
 
 function viewSnapshot(version: JobRuleVersion) {
   snapshotTitle.value = `规则版本 v${version.version_no} 快照`
-  snapshotContent.value = JSON.stringify(version.rule_snapshot, null, 2)
+  snapshotRules.value = version.rule_snapshot
   snapshotVisible.value = true
 }
 </script>
@@ -117,20 +140,20 @@ function viewSnapshot(version: JobRuleVersion) {
       <el-card class="page-card">
         <template #header>
           <div class="toolbar" style="margin-bottom: 0">
-            <span class="section-title" style="margin: 0">岗位信息</span>
+            <span class="section-title" style="margin: 0">{{ job.name }}</span>
             <div class="spacer" />
             <el-tag :type="job.status === 'active' ? 'success' : 'info'">
               {{ job.status === 'active' ? '启用' : '已停用' }}
             </el-tag>
             <el-tag type="primary" effect="plain">草稿版本 v{{ job.draft_version }}</el-tag>
-            <el-button v-if="!editing && job.status === 'active'" size="small" @click="startEdit">
-              编辑草稿
+            <el-button v-if="!editing" size="small" @click="startEdit">
+              编辑岗位与规则
             </el-button>
             <el-button
-              v-if="job.status === 'active'"
+              v-if="job.status === 'active' && !editing"
               size="small"
               type="primary"
-              @click="publishDialogVisible = true"
+              @click="beginPublish"
             >发布规则</el-button>
           </div>
         </template>
@@ -144,12 +167,12 @@ function viewSnapshot(version: JobRuleVersion) {
             <span style="white-space: pre-wrap">{{ job.requirements ?? '-' }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="草稿规则">
-            <div v-if="job.draft_rules" class="json-view">{{ JSON.stringify(job.draft_rules, null, 2) }}</div>
+            <RuleEditor v-if="job.draft_rules" :model-value="job.draft_rules" read-only />
             <span v-else class="muted">未定义（发布前必须先定义规则）</span>
           </el-descriptions-item>
         </el-descriptions>
 
-        <el-form v-else label-width="90px">
+        <el-form v-else label-width="90px" :disabled="saving || publishing">
           <el-form-item label="岗位名称">
             <el-input v-model="editForm.name" maxlength="200" />
           </el-form-item>
@@ -164,6 +187,7 @@ function viewSnapshot(version: JobRuleVersion) {
           </el-form-item>
           <el-form-item>
             <el-button :loading="saving" type="primary" @click="saveEdit">保存草稿</el-button>
+            <el-button v-if="job.status === 'active'" :disabled="saving || publishing" @click="saveAndPublish">保存并发布</el-button>
             <el-button @click="editing = false; load()">取消</el-button>
             <span class="muted">保存成功后草稿版本自动 +1</span>
           </el-form-item>
@@ -198,7 +222,7 @@ function viewSnapshot(version: JobRuleVersion) {
           type="info"
           :closable="false"
           show-icon
-          title="发布时会校验规则结构：维度上限合计 100、ID 唯一、阈值合法；发布成功后草稿版本自动推进。"
+          title="发布后，新批次自动带入这套评分标准；已有批次的规则和结果不会改变。"
           style="margin-bottom: 16px"
         />
         <el-form label-width="90px">
@@ -215,8 +239,8 @@ function viewSnapshot(version: JobRuleVersion) {
         </template>
       </el-dialog>
 
-      <el-dialog v-model="snapshotVisible" :title="snapshotTitle" width="760px">
-        <div class="json-view">{{ snapshotContent }}</div>
+      <el-dialog v-model="snapshotVisible" :title="snapshotTitle" width="min(960px, calc(100vw - 32px))" top="4vh">
+        <RuleEditor v-if="snapshotRules" :model-value="snapshotRules" read-only />
       </el-dialog>
     </template>
   </div>

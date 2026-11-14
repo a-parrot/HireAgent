@@ -9,6 +9,8 @@ export interface Job {
   draft_rules: Record<string, unknown> | null
   status: 'active' | 'disabled'
   draft_version: number
+  deleted_at?: string | null
+  latest_published_version?: number | null
   created_at: string
   updated_at: string
 }

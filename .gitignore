@@ -17,6 +17,8 @@ ENV/
 *.egg-info/
 build/
 dist/
+frontend/test-results/
+frontend/playwright-report/
 
 # JavaScript frontend dependencies and build output
 node_modules/

@@ -3,7 +3,8 @@
 import argparse
 import asyncio
 
-from sqlalchemy import inspect
+from sqlalchemy import Boolean, inspect
+from sqlalchemy.dialects.mysql import TINYINT
 
 from app.clients.mysql_client import MySQLClient
 from app.core.config import Settings
@@ -30,9 +31,16 @@ def verify(connection):
             # Compare dialect affinity and length; separate client defaults from server defaults.
             expected = column.type.dialect_impl(connection.dialect)
             actual = reflected["type"]
-            if actual._type_affinity is not expected._type_affinity or getattr(
-                actual, "length", None
-            ) != getattr(expected, "length", None):
+            # MySQL reflects BOOLEAN (an alias) as TINYINT(1).
+            boolean_alias = (
+                isinstance(expected, Boolean)
+                and isinstance(actual, TINYINT)
+                and actual.display_width == 1
+            )
+            if not boolean_alias and (
+                actual._type_affinity is not expected._type_affinity
+                or getattr(actual, "length", None) != getattr(expected, "length", None)
+            ):
                 differences.append(table.name + "." + column.name + ": type differs")
         if inspector.get_pk_constraint(table.name)["constrained_columns"] != [
             c.name for c in table.primary_key.columns
@@ -80,7 +88,7 @@ async def main():
             "Columns, types, primary keys, unique keys and foreign keys match baseline."
         )
         print(
-            "Also review CHECK constraints/defaults against sql/01-schema.sql before manually stamping revision 005."
+            "Also review CHECK constraints/defaults against sql/01-schema.sql before manually stamping revision 006."
         )
     finally:
         await db.close()

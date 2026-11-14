@@ -9,8 +9,8 @@ import type {
   PublishRequest,
 } from './types'
 
-export async function listJobs(page: number, pageSize: number): Promise<Paged<Job>> {
-  const { data } = await http.get('/jobs', { params: { page, page_size: pageSize } })
+export async function listJobs(page: number, pageSize: number, filters: { keyword?: string; status?: string } = {}): Promise<Paged<Job>> {
+  const { data } = await http.get('/jobs', { params: { page, page_size: pageSize, ...filters } })
   return data
 }
 
@@ -37,4 +37,13 @@ export async function publishJob(id: string, body: PublishRequest): Promise<JobR
 export async function disableJob(id: string): Promise<Job> {
   const { data } = await http.post(`/jobs/${id}/disable`)
   return data
+}
+
+export async function enableJob(id: string): Promise<Job> {
+  const { data } = await http.post(`/jobs/${id}/enable`)
+  return data
+}
+
+export async function deleteJob(id: string): Promise<void> {
+  await http.delete(`/jobs/${id}`)
 }

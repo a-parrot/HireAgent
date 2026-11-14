@@ -23,6 +23,7 @@ from app.models.mysql.entities import (
     Review,
     utcnow,
 )
+from app.prompts.prompt_loader import prompt_version
 from app.repositories.common import require
 from app.services.resume_service.resumes import parse_pdf
 
@@ -209,15 +210,23 @@ class WorkflowRuntime:
                 candidate.evidence = output["analysis"]["evidence"]
                 candidate.model_id = self.config.llm_model
                 candidate.prompt_versions = {
-                    "analysis": "1",
-                    "evaluation": "1",
-                    "review": "1",
+                    **(candidate.prompt_versions or {}),
+                    "analysis": prompt_version("resume_analysis"),
                 }
             elif name == "evaluate_candidate":
+                candidate.prompt_versions = {
+                    **(candidate.prompt_versions or {}),
+                    "evaluation": prompt_version("candidate_evaluation"),
+                }
                 candidate.hard_conditions = output["evaluation"]["hard_conditions"]
                 candidate.dimension_scores = output["evaluation"]["dimension_scores"]
                 candidate.missing_fields = output["evaluation"]["missing_fields"]
                 candidate.risks = output["evaluation"]["risks"]
+            elif name == "review_evaluation":
+                candidate.prompt_versions = {
+                    **(candidate.prompt_versions or {}),
+                    "review": prompt_version("evaluation_review"),
+                }
             elif name == "summarize_result":
                 for key, value in output["summary"].items():
                     setattr(candidate, key, value)

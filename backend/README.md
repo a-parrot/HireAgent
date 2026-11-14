@@ -27,11 +27,11 @@ uv run python -m scripts.init_checkpoints
 uv run python main.py
 ```
 
-五个 Alembic revision 依次建立岗位、简历、审核、执行、排期/动作表；SQL 固化在 revision 内，不随以后 ORM 修改而改变历史迁移。初始岗位导入可重复执行，不覆盖已有配置。数据库名必须预先存在，迁移不创建账号、不修改密码。不要在有用户数据的数据库执行 downgrade。
+前五个 Alembic revision 依次建立岗位、简历、审核、执行、排期/动作表；006 为岗位增加 deleted_at，实现删除隐藏且保留历史；SQL 固化在 revision 内，不随以后 ORM 修改而改变历史迁移。初始岗位导入可重复执行，不覆盖已有配置。数据库名必须预先存在，迁移不创建账号、不修改密码。不要在有用户数据的数据库执行 downgrade。
 
 ### 已导入 sql/01-schema.sql 的数据库
 
-不要再无条件执行建表迁移。先运行 `uv run python -m scripts.verify_schema`，并人工核对 sql/01-schema.sql 的 CHECK、默认值及索引；只有确认完整 12 表与本仓库 revision 005 一致时，才执行 `uv run alembic stamp 005`。有结构差异或只有部分表时应先编写增量迁移对齐。检查点表仍由适配器 setup 创建，与业务表版本独立。
+不要再无条件执行建表迁移。先运行 `uv run python -m scripts.verify_schema`，并人工核对 sql/01-schema.sql 的 CHECK、默认值及索引；只有确认完整 12 表与本仓库 revision 006 一致时，才执行 `uv run alembic stamp 006`。有结构差异或只有部分表时应先编写增量迁移对齐。检查点表仍由适配器 setup 创建，与业务表版本独立。
 
 ## 3. 启动与配置
 
@@ -122,3 +122,9 @@ docker compose -f dockercompose.yaml --profile backend logs --tail=100 backend
 后端默认映射 Ubuntu 本机 127.0.0.1:8000。需要 Windows 本地调试时可建立 SSH 隧道 `ssh -N -L 8000:127.0.0.1:8000 用户@服务器`；随后访问本地 /docs。应用文件位于独立 backend_storage 命名卷，备份时也要导出该卷中的上传原件和页文本。该命名卷不会自动导入宿主机已有 backend/storage 文件；已有原件应在停写期间手动迁移并核对。
 
 Dockerfile 使用 uv.lock 同步生产依赖，不包含测试依赖。当前只通过 Compose 配置验证，尚未在运行中的 Docker Engine 构建或启动后端镜像。
+
+## 岗位管理更新
+
+岗位 API 支持名称搜索、状态筛选、重新启用和 DELETE 删除。删除使用 deleted_at 从管理列表隐藏，既有发布版本、批次与评估均保留；被删除岗位不允许新增批次、编辑或再次发布。
+
+已有 Alembic 005 的数据库执行 `uv run alembic upgrade head`；使用旧 SQL 直接建表且尚未接管迁移的库，可核对列后执行一次 sql/03-job-soft-delete.sql。新版 01-schema.sql 已含该列，不要重复执行 03。当前配置的服务器已增量加入该列，原有 1 个岗位仍保留并正常出现在默认列表中。
