@@ -1,7 +1,29 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "HireAgent FastAPI and multi-agent recruitment backend"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "aiomysql>=0.3.2",
+    "alembic>=1.20.1",
+    "fastapi[standard]>=0.162.7",
+    "langgraph>=1.2.22",
+    "langgraph-checkpoint-mysql[aiomysql]>=3.0.0",
+    "pydantic-settings>=2.16.3",
+    "pymupdf>=2.1",
+    "sqlalchemy[asyncio]>=2.1.8",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "ruff>=0.17.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"

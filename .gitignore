@@ -45,3 +45,8 @@ Thumbs.db
 
 tools/
 需求分析/
+
+# Local uv cache and runtime artifacts
+.uv-cache/
+backend/logs/
+backend/storage/
