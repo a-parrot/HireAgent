@@ -1,0 +1,47 @@
+# Python bytecode and tooling
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Python virtual environments and package build artifacts
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+build/
+dist/
+
+# JavaScript frontend dependencies and build output
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.next/
+.nuxt/
+out/
+
+# Local environment settings and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE and operating-system files
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Local agent workspaces
+.agent-workspaces/
+
+tools/
+需求分析/
