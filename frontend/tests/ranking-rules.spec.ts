@@ -1,0 +1,36 @@
+import { test, expect } from './fixtures'
+import { readFileSync } from 'node:fs'
+
+test('ranking can reorder and select scoring items, survives saving and removes deleted scores', async ({ page }) => {
+  const initial = JSON.parse(readFileSync('../backend/app/conf/initial_job.json', 'utf8'))
+  const original = structuredClone(initial)
+  const job = { id: '1', name: initial.job_name, status: 'active', draft_rules: initial, draft_version: 1, versions: [{ id: '1', version_no: 1, rule_snapshot: original }] }
+  await page.route(url => url.pathname.startsWith('/api/'), async route => {
+    if (new URL(route.request().url()).pathname !== '/api/jobs/1') throw new Error('Unexpected API request')
+    if (route.request().method() === 'PATCH') Object.assign(job, route.request().postDataJSON(), { draft_version: job.draft_version + 1 })
+    return route.fulfill({ json: job })
+  })
+  await page.goto('/jobs/1?edit=1')
+  const ranking = page.getByRole('group', { name: '排名优先级', exact: true })
+  const preview = ranking.getByLabel('当前排名顺序', { exact: true })
+  await expect(preview).toContainText('总分 → 直接钢结构 MiC')
+  await ranking.getByRole('button', { name: '上移排名项 3', exact: true }).click()
+  await expect(preview).toContainText('总分 → 海外项目或跨国协作经验 → 直接钢结构')
+  await ranking.getByRole('button', { name: '添加排名项', exact: true }).click()
+  await ranking.getByRole('combobox', { name: '排名项 5', exact: true }).focus()
+  await ranking.getByRole('combobox', { name: '排名项 5', exact: true }).press('ArrowDown')
+  await page.getByRole('option', { name: '英语及跨文化沟通能力', exact: true }).click()
+  await expect(preview).toContainText('英语及跨文化沟通能力')
+  await ranking.getByRole('button', { name: '删除排名项 4', exact: true }).click()
+  await page.getByRole('textbox', { name: '评分内容 3', exact: true }).fill('优先考虑海外协作')
+  await expect(preview).toContainText('总分 → 优先考虑海外协作')
+  await page.getByRole('button', { name: '删除评分项 6', exact: true }).click()
+  await expect(preview).not.toContainText('英语及跨文化沟通能力')
+  await page.getByRole('button', { name: '保存草稿', exact: true }).click()
+  expect(job.draft_rules.sort_priority.map((p: { field: string }) => p.field)).toEqual(['total_score', 'overseas', 'mic_experience'])
+  expect(job.versions[0]!.rule_snapshot).toEqual(original)
+  await page.reload()
+  await expect(preview).toContainText('总分 → 优先考虑海外协作 → 直接钢结构')
+  await ranking.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: test.info().outputPath('ranking-priority.png'), animations: 'disabled' })
+})

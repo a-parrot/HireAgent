@@ -1,0 +1,221 @@
+
+> hireagent-frontend@0.1.0 test:e2e
+> playwright test
+
+[WebServer] (node:42704) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 10 tests using 1 worker
+
+(node:37748) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 tests\evaluation-actions.spec.ts:3:1 › high-score scheduling and single/bulk invalid-record deletion preserve admitted candidates (7.0s)
+  x   2 tests\evaluations.spec.ts:3:1 › evaluation management filters score bands and completes review and scheduling in drawers (30.4s)
+(node:14708) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   3 tests\hard-condition-scoring.spec.ts:3:1 › hard-condition rejection shows its reason; scoring shows item names, fixed points and quotes (6.1s)
+(node:12244) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  4 tests\history.spec.ts:3:1 › history logs show separate parsing snapshots, legacy logs and evaluation events (3.2s)
+  x   5 tests\human-workflow.spec.ts:3:1 › phase filters guide human review and only admitted candidates get scheduling actions (2.0s)
+(node:24824) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  6 tests\interview-workspace.spec.ts:3:1 › candidate booking defaults to 45 minutes, previews batch intervals, and submits once (2.0s)
+  x   7 tests\jobs.spec.ts:4:1 › existing jobs load by default; create, edit rules, publish and delete through forms (30.5s)
+(node:45616) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  8 tests\resume-network.spec.ts:3:1 › slow polling stays single-flight; network failure preserves stale data and retry recovers (1.4s)
+  x   9 tests\resumes.spec.ts:4:1 › resume workspace: jobs, details, SHA uploads, duplicate feedback, inline evaluation and deletion (30.1s)
+(node:31276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 10 tests\review-recovery.spec.ts:3:1 › workflow failures are separate from human decisions and cached review recovery is explicit (1.3s)
+
+
+  1) tests\evaluations.spec.ts:3:1 › evaluation management filters score bands and completes review and scheduling in drawers 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog', { name: '面试排期管理', exact: true }).getByRole('button', { name: '统一排期', exact: true })
+
+
+      73 |   await drawer.getByRole('button', { name: '管理面试排期', exact: true }).click()
+      74 |   const scheduling = page.getByRole('dialog', { name: '面试排期管理', exact: true })
+    > 75 |   await scheduling.getByRole('button', { name: '统一排期', exact: true }).click()
+         |                                                                       ^
+      76 |   await page.getByRole('button', { name: '执行排期', exact: true }).click()
+      77 |   await expect(scheduling.getByText('预约（2）')).toBeVisible()
+      78 |   expect(scheduled).toBe(true)
+        at E:\vibecoding-project\HireAgent\frontend\tests\evaluations.spec.ts:75:71
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\evaluations-evaluation-man-b5e35-w-and-scheduling-in-drawers\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\evaluations-evaluation-man-b5e35-w-and-scheduling-in-drawers\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\evaluations-evaluation-man-b5e35-w-and-scheduling-in-drawers\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\evaluations-evaluation-man-b5e35-w-and-scheduling-in-drawers\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) tests\hard-condition-scoring.spec.ts:3:1 › hard-condition rejection shows its reason; scoring shows item names, fixed points and quotes 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('blockquote').filter({ hasText: '负责海外模块化项目交付及团队管理。' }).first()
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('blockquote').filter({ hasText: '负责海外模块化项目交付及团队管理。' }).first() with timeout 5000ms
+      - waiting for locator('blockquote').filter({ hasText: '负责海外模块化项目交付及团队管理。' }).first()
+
+
+      16 |   await expect(page.getByText('硬条件未通过，已跳过评分', { exact: true })).toBeVisible()
+      17 |   await expect(page.getByRole('cell', { name: '具备项目或团队管理经历', exact: true })).toBeVisible()
+    > 18 |   await expect(page.locator('blockquote').filter({ hasText: quote }).first()).toBeVisible()
+         |                                                                               ^
+      19 |   await page.screenshot({ path: test.info().outputPath('hard-condition-rejected.png'), fullPage: true, animations: 'disabled' })
+      20 |   await page.goto('/candidates/2')
+      21 |   await expect(page.getByText('模块化建筑项目经验', { exact: true })).toBeVisible()
+        at E:\vibecoding-project\HireAgent\frontend\tests\hard-condition-scoring.spec.ts:18:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\hard-condition-scoring-har-f4827-mes-fixed-points-and-quotes\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\hard-condition-scoring-har-f4827-mes-fixed-points-and-quotes\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hard-condition-scoring-har-f4827-mes-fixed-points-and-quotes\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hard-condition-scoring-har-f4827-mes-fixed-points-and-quotes\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) tests\human-workflow.spec.ts:3:1 › phase filters guide human review and only admitted candidates get scheduling actions 
+
+    Error: Unexpected request: /api/interviews
+
+      19 |     if (url.pathname === '/api/candidates/1') return route.fulfill({ json: rows[0] })
+      20 |     if (url.pathname === '/api/scheduling-records') return route.fulfill({ json: { items: [], total: 0 } })
+    > 21 |     throw new Error(`Unexpected request: ${url.pathname}`)
+         |           ^
+      22 |   })
+      23 |   await page.goto('/evaluations?workflow=waiting_review')
+      24 |   const flow = page.getByRole('navigation', { name: '招聘操作流程', exact: true })
+        at E:\vibecoding-project\HireAgent\frontend\tests\human-workflow.spec.ts:21:11
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('还没有已准入面试的候选人', { exact: true })
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByText('还没有已准入面试的候选人', { exact: true }) with timeout 5000ms
+      - waiting for getByText('还没有已准入面试的候选人', { exact: true })
+      - Test ended.
+
+
+      47 |   await page.screenshot({ path: test.info().outputPath('human-workflow-tablet.png'), animations: 'disabled' })
+      48 |   await flow.getByRole('link', { name: /安排面试/ }).click()
+    > 49 |   await expect(page.getByText('还没有已准入面试的候选人', { exact: true })).toBeVisible()
+         |                                                                 ^
+      50 |   await page.getByRole('button', { name: '待安排面试', exact: true }).click()
+      51 |   await expect(page).toHaveURL(/\/evaluations\?workflow=awaiting_schedule$/)
+      52 |   await expect(page.getByRole('tab', { name: '待安排面试', exact: true })).toHaveAttribute('aria-selected', 'true')
+        at E:\vibecoding-project\HireAgent\frontend\tests\human-workflow.spec.ts:49:65
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\human-workflow-phase-filte-5128d-ates-get-scheduling-actions\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\human-workflow-phase-filte-5128d-ates-get-scheduling-actions\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\human-workflow-phase-filte-5128d-ates-get-scheduling-actions\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\human-workflow-phase-filte-5128d-ates-get-scheduling-actions\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) tests\jobs.spec.ts:4:1 › existing jobs load by default; create, edit rules, publish and delete through forms 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('row').filter({ hasText: '修改后的岗位' }).getByRole('button', { name: '删除', exact: true })
+
+
+      107 |   const row = page.getByRole('row').filter({ hasText: '修改后的岗位' })
+      108 |   await expect(row).toBeVisible()
+    > 109 |   await row.getByRole('button', { name: '删除', exact: true }).click()
+          |                                                              ^
+      110 |   await page.getByRole('button', { name: '确认删除', exact: true }).click()
+      111 |   await expect(page.getByText('修改后的岗位', { exact: true })).toHaveCount(0)
+      112 |   await expect(page.getByText(initialRules.job_name, { exact: true })).toBeVisible()
+        at E:\vibecoding-project\HireAgent\frontend\tests\jobs.spec.ts:109:62
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\jobs-existing-jobs-load-by-3e1cc-sh-and-delete-through-forms\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\jobs-existing-jobs-load-by-3e1cc-sh-and-delete-through-forms\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\jobs-existing-jobs-load-by-3e1cc-sh-and-delete-through-forms\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\jobs-existing-jobs-load-by-3e1cc-sh-and-delete-through-forms\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) tests\resumes.spec.ts:4:1 › resume workspace: jobs, details, SHA uploads, duplicate feedback, inline evaluation and deletion 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: '详情', exact: true }).first()
+
+
+      65 |   await expect(page.getByRole('button', { name: /Python 工程师/ })).toBeVisible()
+      66 |   await page.screenshot({ path: test.info().outputPath('resume-workspace.png'), fullPage: true, animations: 'disabled' })
+    > 67 |   await page.getByRole('button', { name: '详情', exact: true }).first().click()
+         |                                                                       ^
+      68 |   const detail = page.getByRole('dialog', { name: '简历详情', exact: true })
+      69 |   await expect(detail.getByText('原件 SHA-256 校验通过', { exact: true })).toBeVisible()
+      70 |   await expect(detail.getByText(/Test resume: managed/)).toBeVisible()
+        at E:\vibecoding-project\HireAgent\frontend\tests\resumes.spec.ts:67:71
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\resumes-resume-workspace-j-e5f5a-ine-evaluation-and-deletion\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\resumes-resume-workspace-j-e5f5a-ine-evaluation-and-deletion\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\resumes-resume-workspace-j-e5f5a-ine-evaluation-and-deletion\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\resumes-resume-workspace-j-e5f5a-ine-evaluation-and-deletion\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    tests\evaluations.spec.ts:3:1 › evaluation management filters score bands and completes review and scheduling in drawers 
+    tests\hard-condition-scoring.spec.ts:3:1 › hard-condition rejection shows its reason; scoring shows item names, fixed points and quotes 
+    tests\human-workflow.spec.ts:3:1 › phase filters guide human review and only admitted candidates get scheduling actions 
+    tests\jobs.spec.ts:4:1 › existing jobs load by default; create, edit rules, publish and delete through forms 
+    tests\resumes.spec.ts:4:1 › resume workspace: jobs, details, SHA uploads, duplicate feedback, inline evaluation and deletion 
+  5 passed (2.1m)

@@ -1,0 +1,58 @@
+{
+  "scope": "synthetic legacy rule routing only; no LLM, I/O or concurrency",
+  "unique_cases": 6,
+  "repetitions": 100,
+  "labels": [
+    "recommended",
+    "needs_review",
+    "deferred"
+  ],
+  "confusion_matrix": [
+    [
+      200,
+      0,
+      0
+    ],
+    [
+      0,
+      200,
+      0
+    ],
+    [
+      0,
+      0,
+      200
+    ]
+  ],
+  "accuracy": 1.0,
+  "per_class": {
+    "recommended": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "needs_review": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "deferred": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "latency_ms": {
+    "mean": 0.01967416542659824,
+    "p50": 0.01750001683831215,
+    "p95": 0.0315000070258975,
+    "p99": 0.045599997974932194
+  },
+  "llm_calls": 0,
+  "tokens": 0,
+  "semantic_accuracy": null,
+  "tool_routing_accuracy": null,
+  "structured_output_validity": null,
+  "ttft": null,
+  "concurrent_success_rate": null
+}

@@ -1,0 +1,272 @@
+
+> hireagent-frontend@0.1.0 test:e2e
+> playwright test
+
+[WebServer] (node:27916) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 10 tests using 1 worker
+
+(node:25168) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   1 tests\evaluation-actions.spec.ts:3:1 › high-score scheduling and single/bulk invalid-record deletion preserve admitted candidates (1ms)
+(node:4684) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   2 tests\evaluations.spec.ts:3:1 › evaluation management filters score bands and completes review and scheduling in drawers (1ms)
+(node:34784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   3 tests\hard-condition-scoring.spec.ts:3:1 › hard-condition rejection shows its reason; scoring shows item names, fixed points and quotes (1ms)
+(node:33348) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   4 tests\history.spec.ts:3:1 › history logs show separate parsing snapshots, legacy logs and evaluation events (1ms)
+(node:27852) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   5 tests\human-workflow.spec.ts:3:1 › phase filters guide human review and only admitted candidates get scheduling actions (1ms)
+(node:13576) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   6 tests\interview-workspace.spec.ts:3:1 › candidate booking defaults to 45 minutes, previews batch intervals, and submits once (1ms)
+(node:49412) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   7 tests\jobs.spec.ts:4:1 › existing jobs load by default; create, edit rules, publish and delete through forms (1ms)
+(node:39608) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   8 tests\resume-network.spec.ts:3:1 › slow polling stays single-flight; network failure preserves stale data and retry recovers (2ms)
+(node:8664) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   9 tests\resumes.spec.ts:4:1 › resume workspace: jobs, details, SHA uploads, duplicate feedback, inline evaluation and deletion (1ms)
+(node:12640) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  10 tests\review-recovery.spec.ts:3:1 › workflow failures are separate from human decisions and cached review recovery is explicit (1ms)
+
+
+  1) tests\evaluation-actions.spec.ts:3:1 › high-score scheduling and single/bulk invalid-record deletion preserve admitted candidates 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\evaluation-actions-high-sc-2931c-reserve-admitted-candidates\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\evaluation-actions-high-sc-2931c-reserve-admitted-candidates\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\evaluation-actions-high-sc-2931c-reserve-admitted-candidates\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) tests\evaluations.spec.ts:3:1 › evaluation management filters score bands and completes review and scheduling in drawers 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\evaluations-evaluation-man-b5e35-w-and-scheduling-in-drawers\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\evaluations-evaluation-man-b5e35-w-and-scheduling-in-drawers\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\evaluations-evaluation-man-b5e35-w-and-scheduling-in-drawers\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) tests\hard-condition-scoring.spec.ts:3:1 › hard-condition rejection shows its reason; scoring shows item names, fixed points and quotes 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\hard-condition-scoring-har-f4827-mes-fixed-points-and-quotes\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hard-condition-scoring-har-f4827-mes-fixed-points-and-quotes\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hard-condition-scoring-har-f4827-mes-fixed-points-and-quotes\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) tests\history.spec.ts:3:1 › history logs show separate parsing snapshots, legacy logs and evaluation events 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\history-history-logs-show--2e996--logs-and-evaluation-events\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\history-history-logs-show--2e996--logs-and-evaluation-events\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\history-history-logs-show--2e996--logs-and-evaluation-events\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) tests\human-workflow.spec.ts:3:1 › phase filters guide human review and only admitted candidates get scheduling actions 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\human-workflow-phase-filte-5128d-ates-get-scheduling-actions\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\human-workflow-phase-filte-5128d-ates-get-scheduling-actions\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\human-workflow-phase-filte-5128d-ates-get-scheduling-actions\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) tests\interview-workspace.spec.ts:3:1 › candidate booking defaults to 45 minutes, previews batch intervals, and submits once 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\interview-workspace-candid-c0fdc--intervals-and-submits-once\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\interview-workspace-candid-c0fdc--intervals-and-submits-once\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\interview-workspace-candid-c0fdc--intervals-and-submits-once\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) tests\jobs.spec.ts:4:1 › existing jobs load by default; create, edit rules, publish and delete through forms 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\jobs-existing-jobs-load-by-3e1cc-sh-and-delete-through-forms\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\jobs-existing-jobs-load-by-3e1cc-sh-and-delete-through-forms\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\jobs-existing-jobs-load-by-3e1cc-sh-and-delete-through-forms\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) tests\resume-network.spec.ts:3:1 › slow polling stays single-flight; network failure preserves stale data and retry recovers 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\resume-network-slow-pollin-b9602-ale-data-and-retry-recovers\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\resume-network-slow-pollin-b9602-ale-data-and-retry-recovers\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\resume-network-slow-pollin-b9602-ale-data-and-retry-recovers\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) tests\resumes.spec.ts:4:1 › resume workspace: jobs, details, SHA uploads, duplicate feedback, inline evaluation and deletion 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\resumes-resume-workspace-j-e5f5a-ine-evaluation-and-deletion\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\resumes-resume-workspace-j-e5f5a-ine-evaluation-and-deletion\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\resumes-resume-workspace-j-e5f5a-ine-evaluation-and-deletion\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) tests\review-recovery.spec.ts:3:1 › workflow failures are separate from human decisions and cached review recovery is explicit 
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\aparrot\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+
+    Error Context: test-results\review-recovery-workflow-f-26a74-review-recovery-is-explicit\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\review-recovery-workflow-f-26a74-review-recovery-is-explicit\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\review-recovery-workflow-f-26a74-review-recovery-is-explicit\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10 failed
+    tests\evaluation-actions.spec.ts:3:1 › high-score scheduling and single/bulk invalid-record deletion preserve admitted candidates 
+    tests\evaluations.spec.ts:3:1 › evaluation management filters score bands and completes review and scheduling in drawers 
+    tests\hard-condition-scoring.spec.ts:3:1 › hard-condition rejection shows its reason; scoring shows item names, fixed points and quotes 
+    tests\history.spec.ts:3:1 › history logs show separate parsing snapshots, legacy logs and evaluation events 
+    tests\human-workflow.spec.ts:3:1 › phase filters guide human review and only admitted candidates get scheduling actions 
+    tests\interview-workspace.spec.ts:3:1 › candidate booking defaults to 45 minutes, previews batch intervals, and submits once 
+    tests\jobs.spec.ts:4:1 › existing jobs load by default; create, edit rules, publish and delete through forms 
+    tests\resume-network.spec.ts:3:1 › slow polling stays single-flight; network failure preserves stale data and retry recovers 
+    tests\resumes.spec.ts:4:1 › resume workspace: jobs, details, SHA uploads, duplicate feedback, inline evaluation and deletion 
+    tests\review-recovery.spec.ts:3:1 › workflow failures are separate from human decisions and cached review recovery is explicit 
