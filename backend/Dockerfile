@@ -7,8 +7,6 @@ ENV UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer fonts-noto-cjk \
-    && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY app ./app

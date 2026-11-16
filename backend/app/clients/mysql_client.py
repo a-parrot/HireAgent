@@ -5,13 +5,16 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from sqlalchemy import URL, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.clients.mysql_compat import ensure_binary_compatibility
 from app.core.config import Settings
 
 
 class MySQLClient:
     def __init__(self, settings: Settings):
+        ensure_binary_compatibility()
         url = URL.create(
             "mysql+aiomysql",
             username=settings.db_user,
@@ -46,7 +49,12 @@ class MySQLClient:
     async def ping(self) -> None:
         async with asyncio.timeout(self.health_timeout):
             async with self.engine.connect() as connection:
-                await connection.execute(text("SELECT 1"))
+                probe = b"hireagent-checkpoint\x00\xff\x27\x5c"
+                result = await connection.scalar(
+                    text("SELECT HEX(:probe)"), {"probe": probe}
+                )
+                if result != probe.hex().upper():
+                    raise SQLAlchemyError("MySQL binary parameter round-trip failed")
 
     async def close(self) -> None:
         await self.engine.dispose()

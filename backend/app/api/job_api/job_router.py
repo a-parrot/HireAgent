@@ -2,6 +2,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Query, Request, Response
 
+from app.api.authorization import operator_data
 from app.schemas.business import JobCreate, JobPatch, PublishRequest
 from app.services.job_service import jobs
 
@@ -38,6 +39,7 @@ async def patch(request: Request, job_id: int, data: JobPatch):
 
 @router.post("/{job_id}/publish")
 async def publish(request: Request, job_id: int, data: PublishRequest):
+    data = operator_data(request, data)
     return await jobs.publish(request.app.state.mysql, job_id, data)
 
 

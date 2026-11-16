@@ -37,6 +37,7 @@ async def test_mysql_migration_and_checkpoint_restart(tmp_path):
     r = WorkflowRuntime(db, config)
     await r.llm.close()
     r.llm = FakeLLM()
+    r.llm.uncertain = True
     try:
         await r.start()
         bid = await batch(db, tmp_path)

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { readFileSync } from 'node:fs'
 
 test('existing jobs load by default; create, edit rules, publish and delete through forms', async ({ page }) => {
@@ -76,7 +76,7 @@ test('existing jobs load by default; create, edit rules, publish and delete thro
   await dialog.getByRole('textbox', { name: '评分内容 1', exact: true }).fill('项目交付经验：主导完整交付')
   await dialog.getByRole('spinbutton', { name: '推荐面试最低分', exact: true }).fill('80')
   await dialog.getByRole('spinbutton', { name: '人工复核最低分', exact: true }).fill('50')
-  await dialog.getByPlaceholder('创建并发布时填写；仅保存草稿无需填写').fill('测试招聘人员')
+  await expect(dialog.getByPlaceholder('创建并发布时填写；仅保存草稿无需填写')).toHaveValue('测试审核人')
   await dialog.locator('.el-dialog__body').evaluate(element => element.scrollTop = 0)
   await page.screenshot({ path: test.info().outputPath('job-rule-form.png'), fullPage: true })
   await dialog.getByRole('button', { name: '创建并发布', exact: true }).click()
@@ -95,7 +95,7 @@ test('existing jobs load by default; create, edit rules, publish and delete thro
   await page.screenshot({ path: test.info().outputPath('simple-rules-editor.png'), fullPage: true, animations: 'disabled' })
   await page.getByRole('button', { name: '保存并发布', exact: true }).click()
   const publish = page.getByRole('dialog', { name: '发布规则版本' })
-  await publish.getByPlaceholder('招聘人员姓名').fill('测试招聘人员')
+  await expect(publish.getByPlaceholder('招聘人员姓名')).toHaveValue('测试审核人')
   await publish.getByRole('button', { name: '确认发布', exact: true }).click()
   await expect(page.getByRole('button', { name: '编辑岗位与规则', exact: true })).toBeVisible()
   expect(versions['2']).toHaveLength(2)
@@ -106,7 +106,7 @@ test('existing jobs load by default; create, edit rules, publish and delete thro
   await page.getByRole('menuitem', { name: '岗位管理', exact: true }).click()
   const row = page.getByRole('row').filter({ hasText: '修改后的岗位' })
   await expect(row).toBeVisible()
-  await row.getByRole('button', { name: '删除', exact: true }).click()
+  await row.getByRole('button', { name: '删除岗位', exact: true }).click()
   await page.getByRole('button', { name: '确认删除', exact: true }).click()
   await expect(page.getByText('修改后的岗位', { exact: true })).toHaveCount(0)
   await expect(page.getByText(initialRules.job_name, { exact: true })).toBeVisible()

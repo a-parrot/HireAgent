@@ -57,6 +57,7 @@ async def test_recovery_after_graph_finished_before_business_status_commit(
     bid = await batch(db, tmp_path)
     cid = int((await candidates(db, bid))["items"][0]["id"])
     r = await runtime(db, tmp_path)
+    r.llm.uncertain = True
     try:
         await r.run(cid)
         await review_candidate(

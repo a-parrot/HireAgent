@@ -61,7 +61,7 @@ def pdf():
         return doc.tobytes()
 
 
-async def batch(db, tmp_path, count=1):
+async def batch(db, tmp_path, count=1, *, legacy=True):
     job_id, _ = await seed(db)
     async with db.session() as session:
         version = await session.scalar(select(JobRuleVersion))
@@ -74,6 +74,14 @@ async def batch(db, tmp_path, count=1):
     result = await resumes.create_batch(
         db, config(tmp_path), int(job_id), version_id, uploads, "Test batch"
     )
+    if legacy:
+        # Existing regression scenarios represent persisted pre-upgrade workflows.
+        # New-flow tests explicitly request legacy=False or use workspace creation.
+        async with db.session() as session:
+            stored = await session.get(Batch, int(result["id"]))
+            snapshot = dict(stored.rule_snapshot)
+            snapshot.pop("evaluation_flow", None)
+            stored.rule_snapshot = snapshot
     return int(result["id"])
 
 
@@ -82,12 +90,60 @@ class FakeLLM:
 
     def __init__(self):
         self.calls = []
+        self.uncertain = False
 
     async def close(self):
         pass
 
     async def generate(self, prompt, payload, schema):
         self.calls.append(schema.__name__)
+        if schema.__name__ == "HardConditionScreening":
+            page = payload["pages"][0]
+            return {
+                "name": "Test Candidate",
+                "hard_conditions": [
+                    {
+                        "condition_id": i,
+                        "result": "satisfied",
+                        "reason": "documented",
+                        "evidence_ids": ["hard_e1"],
+                    }
+                    for i in jobs.condition_ids(payload["rules"]["hard_conditions"])
+                ],
+                "evidence": [
+                    {
+                        "evidence_id": "hard_e1",
+                        "file_id": page["file_id"],
+                        "block_id": page.get("block_id"),
+                        "page_no": page.get("page_no"),
+                        "quote": "Managed overseas modular projects for 12 years.",
+                    }
+                ],
+            }
+        if schema.__name__ == "ScoringEvidence":
+            page = payload["pages"][0]
+            eid = payload["chunk_prefix"] + "e1"
+            return {
+                "name": "Test Candidate",
+                "matches": [
+                    {
+                        "dimension_id": d["id"],
+                        "matched": True,
+                        "reason": "documented",
+                        "evidence_ids": [eid],
+                    }
+                    for d in payload["rules"]["dimensions"]
+                ],
+                "evidence": [
+                    {
+                        "evidence_id": eid,
+                        "file_id": page["file_id"],
+                        "block_id": page.get("block_id"),
+                        "page_no": page.get("page_no"),
+                        "quote": "Managed overseas modular projects for 12 years.",
+                    }
+                ],
+            }
         if schema.__name__ == "Analysis":
             page = payload["pages"][0]
             return {
@@ -104,7 +160,8 @@ class FakeLLM:
                     {
                         "evidence_id": "e1",
                         "file_id": page["file_id"],
-                        "page_no": page["page_no"],
+                        "page_no": page.get("page_no"),
+                        "block_id": page.get("block_id"),
                         "quote": "Managed overseas modular projects for 12 years.",
                     }
                 ],
@@ -131,7 +188,7 @@ class FakeLLM:
                     for d in payload["rules"]["dimensions"]
                 ],
                 "risks": [],
-                "missing_fields": [],
+                "missing_fields": ["项目职责待确认"] if self.uncertain else [],
             }
         return {"review_notes": [], "needs_human_review": False}
 
@@ -188,7 +245,11 @@ async def test_upload_dedup_parse_and_versions(db, tmp_path):
     assert result["total"] == 1
     candidate = result["items"][0]
     pages = await resumes.parse_pdf(db, config(tmp_path), int(candidate["file_id"]))
-    assert pages[0]["page_no"] == 1 and "12 years" in pages[0]["text"]
+    assert (
+        pages[0]["page_no"] is None
+        and pages[0]["block_id"] == "document"
+        and "12 years" in pages[0]["text"]
+    )
     assert (
         await resumes.parse_pdf(db, config(tmp_path), int(candidate["file_id"]))
         == pages
@@ -202,6 +263,7 @@ async def test_graph_interrupt_restart_and_approval(db, tmp_path):
     cid = int((await resumes.candidates(db, batch_id))["items"][0]["id"])
     saver = InMemorySaver()
     r = await runtime(db, tmp_path, saver)
+    r.llm.uncertain = True
     try:
         await r.run(cid)
         detail = await resumes.candidate_detail(db, cid)
@@ -269,32 +331,21 @@ async def test_failed_node_retry_reuses_analysis(db, tmp_path):
         await r.tasks[cid]
         assert (await resumes.candidate_detail(db, cid))[
             "processing_status"
-        ] == "waiting_review"
+        ] == "completed"
         assert r.llm.calls.count("Analysis") == 1
     finally:
         await r.close()
 
 
-async def test_approval_requires_valid_score(db, tmp_path):
+async def test_approval_allows_unscored_after_supplement(db, tmp_path):
     batch_id = await batch(db, tmp_path)
     cid = int((await resumes.candidates(db, batch_id))["items"][0]["id"])
     async with db.session() as session:
         c = await require(session, Candidate, cid)
         c.processing_status = "waiting_review"
     r = await runtime(db, tmp_path)
+    r.enqueue = lambda candidate_id: None
     try:
-        with pytest.raises(BusinessError, match="有效评分"):
-            await review_candidate(
-                db,
-                r,
-                cid,
-                ReviewRequest(
-                    operation="approve",
-                    review_version=0,
-                    reason="test",
-                    operator_name="tester",
-                ),
-            )
         await review_candidate(
             db,
             r,
@@ -307,7 +358,21 @@ async def test_approval_requires_valid_score(db, tmp_path):
                 supplements=[{"description": "Clarified", "source": "phone interview"}],
             ),
         )
-        assert (await resumes.candidate_detail(db, cid))["review_status"] == "pending"
+        detail = await resumes.candidate_detail(db, cid)
+        assert detail["review_status"] == "pending"
+        await review_candidate(
+            db,
+            r,
+            cid,
+            ReviewRequest(
+                operation="approve",
+                review_version=1,
+                operator_name="tester",
+            ),
+        )
+        detail = await resumes.candidate_detail(db, cid)
+        assert detail["review_status"] == "approved"
+        assert detail["total_score"] is None
     finally:
         await r.close()
 

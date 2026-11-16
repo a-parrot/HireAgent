@@ -1,7 +1,5 @@
 import hashlib
 import io
-import zipfile
-from unittest.mock import patch
 
 import httpx
 import pytest
@@ -62,10 +60,11 @@ async def test_single_multi_hash_partial_rejection_and_cross_job_reuse(db, tmp_p
     rid = int(result["items"][0]["resume_id"])
     detail = await workspace.detail(db, config(tmp_path), jid, rid)
     assert detail["sha256_verified"] and detail["parse_status"] == "completed"
-    assert "Managed overseas" in detail["pages"][0]["text"]
+    assert "Managed overseas" in detail["markdown"]
+    assert detail["pages"] == []
     assert [n["status"] for n in detail["import_task"]["node_progress"]] == [
         "completed"
-    ] * 4
+    ] * 3
     other = await jobs.create_job(db, JobCreate(name="Other", draft_rules=rules()))
     result2, tasks2 = await workspace.upload_many(
         db, config(tmp_path), int(other["id"]), [upload(data)]
@@ -90,7 +89,10 @@ async def test_create_from_ready_delete_preserves_history_and_restore(db, tmp_pa
     created = await workspace.create_evaluation(
         db, jid, [rid], int(version["id"]), "new batch"
     )
-    assert created["rule_snapshot"] == version["rule_snapshot"]
+    assert created["rule_snapshot"] == {
+        **version["rule_snapshot"],
+        "evaluation_flow": "hard_conditions_verified_v2",
+    }
     assert created["imported_count"] == 1
     await workspace.remove(db, jid, rid)
     assert (await workspace.list_resumes(db, jid))["total"] == 0
@@ -104,7 +106,7 @@ async def test_create_from_ready_delete_preserves_history_and_restore(db, tmp_pa
     restored, _ = await workspace.upload_many(db, config(tmp_path), jid, [upload(data)])
     assert restored["items"][0]["resume_id"] == str(rid)
     detail = await workspace.detail(db, config(tmp_path), jid, rid)
-    assert len(detail["evaluations"]) == 1
+    assert len(detail["evaluations"]) == 0
     other = await jobs.create_job(db, JobCreate(name="Other", draft_rules=rules()))
     with pytest.raises(BusinessError):
         await workspace.detail(db, config(tmp_path), int(other["id"]), rid)
@@ -147,34 +149,13 @@ async def test_restart_recovers_pending_and_interrupted_imports(db, tmp_path):
     assert detail["parse_status"] == "completed"
 
 
-async def test_docx_missing_converter_explicit_failure_and_retry(db, tmp_path):
-    stream = io.BytesIO()
-    with zipfile.ZipFile(stream, "w") as z:
-        z.writestr("word/document.xml", "<document/>")
+async def test_word_rejected_but_pdf_in_same_upload_is_accepted(db, tmp_path):
     jid, _ = await seed(db)
-    jid = int(jid)
-    cfg = config(tmp_path)
-    cfg.libreoffice_bin = "missing-test-converter"
     result, ids = await workspace.upload_many(
-        db, cfg, jid, [upload(stream.getvalue(), "resume.docx")]
+        db, config(tmp_path), int(jid), [upload(b"word", "resume.docx"), upload()]
     )
-    runtime = ImportRuntime(db, cfg)
-    await runtime.run(ids[0])
-    rid = int(result["items"][0]["resume_id"])
-    detail = await workspace.detail(db, cfg, jid, rid)
-    assert detail["parse_status"] == "failed" and "LibreOffice" in detail["parse_error"]
-    retry = await workspace.retry(db, jid, rid)
-    assert retry != ids[0]
-
-    # Test-only converter; no claim of real LibreOffice verification on Windows.
-    def convert(cfg, source, target):
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(pdf())
-
-    with patch("app.services.resume_service.import_runtime.convert_word", convert):
-        await runtime.run(retry)
-    detail = await workspace.detail(db, cfg, jid, rid)
-    assert detail["parse_status"] == "completed" and detail["pages"][0]["page_no"] == 1
+    assert result["rejected"] == 1 and result["accepted"] == 1 and len(ids) == 1
+    assert "仅支持 PDF" in result["items"][0]["message"]
 
 
 async def test_http_upload_detail_delete_and_unready_evaluation_rejected(db, tmp_path):

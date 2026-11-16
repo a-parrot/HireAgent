@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { createHash } from 'node:crypto'
 
 test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline evaluation and deletion', async ({ page }) => {
@@ -20,7 +20,7 @@ test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline e
         const row = rows[jid]!.find(r => r.id === rid)
         if (!row) return send({ detail: '已移除' }, 404)
         if (method === 'DELETE') { rows[jid] = rows[jid]!.filter(r => r.id !== rid); return route.fulfill({ status: 204 }) }
-        return send({ ...row, sha256_verified: true, pages: [{ page_no: 1, text: 'Test resume: managed overseas projects for twelve years.' }], import_task: { status: 'completed', current_node: null, node_progress: [{ name: 'prepare_import', status: 'completed' }, { name: 'parse_pdf', status: 'completed' }], error_message: null }, evaluations: [] })
+        return send({ ...row, sha256_verified: true, markdown: 'Test resume: managed overseas projects for twelve years.', pages: [], import_task: { status: 'completed', current_node: null, node_progress: [{ name: 'prepare_import', status: 'completed' }, { name: 'parse_pdf', status: 'completed' }], error_message: null }, evaluations: [] })
       }
       if (method === 'GET') {
         const filtered = rows[jid]!.filter(r => !url.searchParams.get('keyword') || r.display_name.includes(url.searchParams.get('keyword')))
@@ -30,6 +30,9 @@ test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline e
         const body = req.postDataBuffer()!.toString('utf8')
         const names = [...body.matchAll(/filename="([^"]+)"/g)].map(m => m[1]!)
         expect(body).toContain('name="sha256s"')
+        expect(body).toContain('name="auto_evaluate"')
+        expect(body).toContain('name="rule_version_id"')
+        expect(body).toContain('name="request_id"')
         const expectedHash = createHash('sha256').update(Buffer.from('%PDF-test-upload')).digest('hex')
         expect(body).toContain(expectedHash)
         uploads++
@@ -41,6 +44,8 @@ test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline e
         return send({ items, accepted: items.filter(i => i.result === 'accepted').length, duplicates: items.filter(i => i.result === 'duplicate').length, rejected: 0 }, 201)
       }
     }
+    if (path === '/api/files/101/content') return send({ file_id: '101', markdown: 'Test resume: managed overseas projects for twelve years.' })
+    if (path === '/api/candidates/501') return send({ id: '501', batch_id: '77', file_id: '101', job_id: '1', rule_version_id: '7', name: 'Test Candidate', original_filename: '已有简历.pdf', processing_status: 'completed', total_score: 88, recommendation: 'recommended', review_status: 'pending', review_version: 0, schedule_status: 'unscheduled', hard_conditions: [], dimension_scores: [], extracted_facts: [], evidence: [{ evidence_id: 'e1', file_id: '101', block_id: 'document', page_no: null, quote: 'managed overseas projects' }], missing_fields: [], risks: [], review_notes: [], review_history: [], reservation: null, actions: {}, error_message: null })
     if (path === '/api/jobs/1') return send({ ...jobs[0], versions: [{ id: '7', version_no: 1, published_by: '招聘人员' }] })
     if (path === '/api/jobs/1/evaluate') {
       evaluated = req.postDataJSON().resume_ids
@@ -59,10 +64,11 @@ test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline e
   await expect(page.getByText('已有简历.pdf', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /Python 工程师/ })).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('resume-workspace.png'), fullPage: true, animations: 'disabled' })
-  await page.getByRole('button', { name: '详情', exact: true }).first().click()
+  await page.getByRole('button', { name: '查看详情', exact: true }).first().click()
   const detail = page.getByRole('dialog', { name: '简历详情', exact: true })
   await expect(detail.getByText('原件 SHA-256 校验通过', { exact: true })).toBeVisible()
   await expect(detail.getByText(/Test resume: managed/)).toBeVisible()
+  await expect(detail.getByText('第 1 页', { exact: true })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /Python 工程师/ }).click()
   await expect(page.getByText('该岗位还没有简历，支持单份或多份导入', { exact: true })).toBeVisible()
@@ -71,6 +77,7 @@ test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline e
   async function importFiles(names: string[]) {
     await page.getByRole('button', { name: '导入简历', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '导入岗位简历', exact: true })
+    await expect(dialog.locator('input[type="file"]')).toHaveAttribute('accept', '.pdf')
     await dialog.locator('input[type="file"]').setInputFiles(names.map(name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-test-upload') })))
     await dialog.getByRole('button', { name: /^导入.*份简历$/ }).click()
     await expect(dialog.getByText('SHA-256 校验通过', { exact: true }).first()).toBeVisible()
@@ -82,8 +89,9 @@ test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline e
   await expect(page.getByRole('row').filter({ hasText: '单份上传.pdf' })).toBeVisible()
   await importFiles(['批量上传.pdf', '重复简历.pdf'])
   expect(uploads).toBe(2)
-  await page.getByRole('row').filter({ hasText: '单份上传.pdf' }).getByRole('button', { name: '移除', exact: true }).click()
-  await page.getByRole('button', { name: '确认移除', exact: true }).click()
+  await page.getByRole('row').filter({ hasText: '单份上传.pdf' }).getByRole('button', { name: '移除简历', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '删除简历及关联数据' })).toContainText('所有关联评估')
+  await page.getByRole('button', { name: '确认删除', exact: true }).click()
   await expect(page.getByRole('row').filter({ hasText: '单份上传.pdf' })).toHaveCount(0)
   await page.getByRole('row').filter({ hasText: '已有简历.pdf' }).locator('.el-checkbox').click()
   await page.getByRole('button', { name: /^开始评估/ }).click()
@@ -91,7 +99,10 @@ test('resume workspace: jobs, details, SHA uploads, duplicate feedback, inline e
   await evaluation.getByRole('button', { name: '确认开始', exact: true }).click()
   await expect(page).toHaveURL(/\/resumes$/)
   await expect(page.getByRole('row').filter({ hasText: '已有简历.pdf' }).getByText('评估中', { exact: true })).toBeVisible()
-  await expect(page.getByRole('row').filter({ hasText: '已有简历.pdf' }).getByRole('button', { name: '评估结果', exact: true })).toBeVisible()
+  await expect(page.getByRole('row').filter({ hasText: '已有简历.pdf' }).getByRole('button', { name: '查看评估结果', exact: true })).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('unified-resume-evaluation.png'), fullPage: true, animations: 'disabled' })
   expect(evaluated).toEqual(['11'])
+  await page.getByRole('row').filter({ hasText: '已有简历.pdf' }).getByRole('button', { name: '查看评估结果', exact: true }).click()
+  await expect(page).toHaveURL(/\/candidates\/501$/)
+  await expect(page.getByRole('region', { name: '审核概览' })).toBeVisible()
 })

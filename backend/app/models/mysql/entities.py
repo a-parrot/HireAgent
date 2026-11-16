@@ -293,12 +293,11 @@ class Slot(Base):
     updated_at = Column(Timestamp, nullable=False, default=utcnow, onupdate=utcnow)
     __table_args__ = (
         UniqueConstraint("batch_id", "id", name="uk_slot_batch_id"),
-        UniqueConstraint("batch_id", "starts_at", name="uk_slot_batch_start"),
         Index("idx_slot_time", "starts_at", "ends_at"),
         ForeignKeyConstraint(["batch_id"], ["batches.id"], name="fk_slot_batch"),
-        CheckConstraint(
-            "ends_at = DATE_ADD(starts_at, INTERVAL 45 MINUTE)", name="ck_slot_duration"
-        ).ddl_if(dialect="mysql"),
+        CheckConstraint("ends_at > starts_at", name="ck_slot_duration").ddl_if(
+            dialect="mysql"
+        ),
     )
 
 
@@ -421,3 +420,64 @@ class Event(Base):
         ),
         CheckConstraint("level IN ('info', 'warning', 'error')", name="ck_event_level"),
     )
+
+
+class AuthRole(Base):
+    __tablename__ = "auth_roles"
+    id = Column(ID, primary_key=True, autoincrement=True)
+    code = Column(String(32), nullable=False, unique=True)
+    name = Column(String(64), nullable=False)
+    description = Column(String(255))
+    created_at = Column(Timestamp, nullable=False, default=utcnow)
+    updated_at = Column(Timestamp, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class AuthPermission(Base):
+    __tablename__ = "auth_permissions"
+    id = Column(ID, primary_key=True, autoincrement=True)
+    code = Column(String(64), nullable=False, unique=True)
+    name = Column(String(64), nullable=False)
+    description = Column(String(255))
+    created_at = Column(Timestamp, nullable=False, default=utcnow)
+
+
+class AuthRolePermission(Base):
+    __tablename__ = "auth_role_permissions"
+    role_id = Column(ID, primary_key=True)
+    permission_id = Column(ID, primary_key=True)
+    created_at = Column(Timestamp, nullable=False, default=utcnow)
+    __table_args__ = (
+        ForeignKeyConstraint(["role_id"], ["auth_roles.id"]),
+        ForeignKeyConstraint(["permission_id"], ["auth_permissions.id"]),
+    )
+
+
+class AuthUser(Base):
+    __tablename__ = "auth_users"
+    id = Column(ID, primary_key=True, autoincrement=True)
+    username = Column(String(64), nullable=False, unique=True)
+    display_name = Column(String(128), nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    role_id = Column(ID, nullable=False)
+    status = Column(String(16), nullable=False, default="active")
+    must_change_password = Column(Boolean, nullable=False, default=True)
+    failed_login_attempts = Column(UInt, nullable=False, default=0)
+    locked_until = Column(Timestamp)
+    password_changed_at = Column(Timestamp, nullable=False, default=utcnow)
+    last_login_at = Column(Timestamp)
+    created_at = Column(Timestamp, nullable=False, default=utcnow)
+    updated_at = Column(Timestamp, nullable=False, default=utcnow, onupdate=utcnow)
+    __table_args__ = (ForeignKeyConstraint(["role_id"], ["auth_roles.id"]),)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+    id = Column(ID, primary_key=True, autoincrement=True)
+    user_id = Column(ID, nullable=False)
+    token_hash = Column(String(64), nullable=False, unique=True)
+    csrf_token_hash = Column(String(64), nullable=False)
+    created_at = Column(Timestamp, nullable=False, default=utcnow)
+    last_seen_at = Column(Timestamp, nullable=False, default=utcnow)
+    expires_at = Column(Timestamp, nullable=False)
+    revoked_at = Column(Timestamp)
+    __table_args__ = (ForeignKeyConstraint(["user_id"], ["auth_users.id"]),)

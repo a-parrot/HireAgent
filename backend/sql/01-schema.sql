@@ -168,17 +168,16 @@ CREATE TABLE IF NOT EXISTS slots (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     batch_id BIGINT UNSIGNED NOT NULL,
     starts_at DATETIME(6) NOT NULL COMMENT 'UTC',
-    ends_at DATETIME(6) NOT NULL COMMENT 'UTC，每次 45 分钟',
+    ends_at DATETIME(6) NOT NULL COMMENT 'UTC，默认 45 分钟，可人工调整',
     timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '展示用 IANA 时区',
     interviewer VARCHAR(200) NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     UNIQUE KEY uk_slot_batch_id (batch_id, id),
-    UNIQUE KEY uk_slot_batch_start (batch_id, starts_at),
     KEY idx_slot_time (starts_at, ends_at),
     CONSTRAINT fk_slot_batch FOREIGN KEY (batch_id) REFERENCES batches (id),
-    CONSTRAINT ck_slot_duration CHECK (ends_at = DATE_ADD(starts_at, INTERVAL 45 MINUTE))
+    CONSTRAINT ck_slot_duration CHECK (ends_at > starts_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='实际面试时段，批次默认配置四个';
 
 CREATE TABLE IF NOT EXISTS reservations (

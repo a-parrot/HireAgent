@@ -9,10 +9,18 @@ from langchain_core.prompts import ChatPromptTemplate
 
 PROMPT_DIR = Path(__file__).resolve().parent
 INPUT_SEPARATOR = "--- INPUT ---"
-PROMPT_NAMES = ("resume_analysis", "candidate_evaluation", "evaluation_review")
+PROMPT_NAMES = (
+    "resume_analysis",
+    "candidate_evaluation",
+    "evaluation_review",
+    "hard_condition_screening",
+    "scoring_evidence",
+    "hard_condition_review",
+    "scoring_evidence_review",
+)
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=7)
 def load_prompt(name: str) -> ChatPromptTemplate:
     if name not in PROMPT_NAMES:
         raise ValueError(f"未知提示词功能：{name}")
@@ -42,7 +50,7 @@ def render_messages(template: ChatPromptTemplate, payload: dict, schema) -> list
     ]
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=7)
 def prompt_version(name: str) -> str:
     # The cached template, not a later edit to the file, is the version in use.
     template = load_prompt(name)

@@ -4,7 +4,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from app.agents.recruitment_agent.nodes.summarize_result import combine, summarize
+from app.agents.resume_evaluation_agent.decision import combine, summarize
 from app.clients.llm_client import LLMClient
 from app.core.config import BACKEND_DIR, Settings
 from app.core.errors import BusinessError

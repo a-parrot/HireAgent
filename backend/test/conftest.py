@@ -30,3 +30,19 @@ async def db(tmp_path):
     database.engine = engine
     yield database
     await engine.dispose()
+
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_business_auth_isolation(request, monkeypatch):
+    # Business regression tests isolate authentication. Security tests use real guards.
+    if request.node.get_closest_marker("auth"):
+        return
+    import app.main as main_module
+
+    async def isolated_authorization():
+        return None
+
+    monkeypatch.setattr(main_module, "authorize", isolated_authorization)

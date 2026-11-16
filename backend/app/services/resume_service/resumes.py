@@ -1,16 +1,19 @@
 import asyncio
+import copy
 import hashlib
 from uuid import uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.agents.resume_evaluation_agent.scoring import new_snapshot
 from app.core.errors import BusinessError
 from app.models.mysql.entities import (
     ActionRecord,
     Batch,
     Candidate,
     File,
+    FileImportTask,
     FilePage,
     Job,
     JobResume,
@@ -20,6 +23,7 @@ from app.models.mysql.entities import (
     utcnow,
 )
 from app.repositories.common import require, serialize
+from app.repositories.evaluation_repo.visibility import is_deleted
 
 
 def safe_path(config, relative):
@@ -67,7 +71,7 @@ async def create_batch(db, config, job_id, version_id, uploads, name):
                 name=name or f"{job.name} 简历批次",
                 job_id=job_id,
                 rule_version_id=version_id,
-                rule_snapshot=version.rule_snapshot,
+                rule_snapshot=new_snapshot(version.rule_snapshot),
             )
             session.add(batch)
             await session.flush()
@@ -181,9 +185,11 @@ async def candidate_detail(db, candidate_id):
         candidate = await require(session, Candidate, candidate_id)
         batch = await require(session, Batch, candidate.batch_id)
         result = serialize(candidate)
+        result["deleted"] = await is_deleted(session, candidate_id)
         result.update(
             job_id=str(batch.job_id), rule_version_id=str(batch.rule_version_id)
         )
+        result["rule_snapshot"] = batch.rule_snapshot
         result["review_history"] = [
             serialize(r)
             for r in (
@@ -215,89 +221,145 @@ async def candidate_detail(db, candidate_id):
         return result
 
 
-def extract_pdf(path):
-    import pymupdf
-
-    try:
-        with pymupdf.open(path) as document:
-            if document.needs_pass:
-                raise BusinessError("PDF 已加密，需人工处理")
-            pages = [p.get_text() for p in document]
-        if not pages or not any(p.strip() for p in pages):
-            raise BusinessError("PDF 无可读文本，需人工处理扫描件")
-        return pages
-    except BusinessError:
-        raise
-    except (RuntimeError, ValueError) as exc:
-        raise BusinessError("PDF 损坏或无法读取") from exc
-
-
-async def parse_pdf(db, config, file_id, *, finalize=True):
+async def read_parsed_content(db, config, file_id):
+    """Read immutable parser output. New full-document results do not use page numbers."""
     async with db.session() as session:
         file = await require(session, File, file_id)
-        if file.parse_status == "completed":
-            rows = (
-                await session.scalars(
-                    select(FilePage)
-                    .where(FilePage.file_id == file_id)
-                    .order_by(FilePage.page_no)
-                )
-            ).all()
+        if file.parse_status != "completed":
+            raise BusinessError("简历尚未解析完成，请先完成导入解析", 409)
+        if file.normalized_markdown_path:
+            if not file.normalized_markdown_path:
+                raise BusinessError("解析正文缺失，请重新解析", 409)
+            path = safe_path(config, file.normalized_markdown_path)
+            try:
+                text = await asyncio.to_thread(path.read_text, encoding="utf-8")
+            except OSError:
+                raise BusinessError("解析正文缺失，请重新解析", 409) from None
             return [
                 {
                     "file_id": str(file_id),
-                    "page_no": r.page_no,
-                    "text": await asyncio.to_thread(
-                        safe_path(config, r.text_path).read_text, encoding="utf-8"
-                    ),
+                    "block_id": "document",
+                    "page_no": None,
+                    "text": text,
                 }
-                for r in rows
             ]
-        path = safe_path(
-            config,
-            file.preview_pdf_path
-            if file.file_type == "docx" and file.preview_pdf_path
-            else file.storage_path,
-        )
+        # Old results remain readable without rewriting published evidence.
+        rows = (
+            await session.scalars(
+                select(FilePage)
+                .where(FilePage.file_id == file_id)
+                .order_by(FilePage.page_no)
+            )
+        ).all()
+        if not rows:
+            raise BusinessError("解析正文缺失，请重新解析", 409)
+        return [
+            {
+                "file_id": str(file_id),
+                "page_no": r.page_no,
+                "text": await asyncio.to_thread(
+                    safe_path(config, r.text_path).read_text, encoding="utf-8"
+                ),
+            }
+            for r in rows
+        ]
+
+
+async def parse_pdf(
+    db,
+    config,
+    file_id,
+    *,
+    finalize=True,
+    parser=None,
+    task_id=None,
+):
+    import json
+
+    from app.clients.pdf_client import PDFClient
+
+    async with db.session() as session:
+        file = await require(session, File, file_id)
+        cached = file.parse_status == "completed"
+        if not cached and file.file_type != "pdf":
+            raise BusinessError("当前仅支持 PDF 简历，请上传 PDF")
+        path, expected_hash = safe_path(config, file.storage_path), file.sha256
+    if cached:
+        return await read_parsed_content(db, config, file_id)
+    from app.services.resume_service.workspace import file_sha
+
+    if await asyncio.to_thread(file_sha, path) != expected_hash:
+        raise BusinessError("原件 SHA-256 校验失败，请重新上传原件", 409)
+    client = parser if parser is not None else PDFClient()
     try:
-        texts = await asyncio.to_thread(extract_pdf, path)
-        outputs = []
-        for index, text in enumerate(texts, 1):
-            relative = f"page_texts/{file_id}/{index}.txt"
-            target = safe_path(config, relative)
+        document_text = await client.extract(path)
+        snapshot_id = str(task_id) if task_id is not None else uuid4().hex
+        root = f"parsed/{file_id}/imports/{snapshot_id}"
+        paths = {
+            "markdown_path": f"{root}/document.md",
+            "normalized_markdown_path": f"{root}/normalized.md",
+            "source_index_path": f"{root}/sources.json",
+        }
+        normalized = document_text.strip()
+        index = [
+            {
+                "file_id": str(file_id),
+                "block_id": "document",
+                "text_path": paths["normalized_markdown_path"],
+                "sha256": hashlib.sha256(normalized.encode()).hexdigest(),
+            }
+        ]
+        for key, content in (
+            ("markdown_path", document_text),
+            ("normalized_markdown_path", normalized),
+            ("source_index_path", json.dumps(index, ensure_ascii=False)),
+        ):
+            target = safe_path(config, paths[key])
             target.parent.mkdir(parents=True, exist_ok=True)
-            await asyncio.to_thread(target.write_text, text, encoding="utf-8")
-            outputs.append((index, relative, text))
+            await asyncio.to_thread(target.write_text, content, encoding="utf-8")
         async with db.session() as session:
             file = await require(session, File, file_id, lock=True)
-            for index, relative, text in outputs:
-                page = await session.scalar(
-                    select(FilePage).where(
-                        FilePage.file_id == file_id, FilePage.page_no == index
-                    )
-                )
-                if page is None:
-                    page = FilePage(file_id=file_id, page_no=index)
-                    session.add(page)
-                page.text_path, page.text_sha256, page.char_count = (
-                    relative,
-                    hashlib.sha256(text.encode()).hexdigest(),
-                    len(text),
-                )
-            file.parse_status, file.page_count, file.parse_error = (
-                "completed" if finalize else "running",
-                len(texts),
-                None,
+            for key, value in paths.items():
+                setattr(file, key, value)
+            file.parser_name, file.parser_version = (
+                "pymupdf-text",
+                client.version,
             )
-            file.parsed_at = utcnow()
+            file.page_count = None
+            if task_id is not None:
+                task = await require(session, FileImportTask, task_id, lock=True)
+                progress = copy.deepcopy(task.node_progress or [])
+                for node in progress:
+                    if node["name"] == "parse_pdf":
+                        node["artifact"] = {
+                            **paths,
+                            "parser_name": file.parser_name,
+                            "parser_version": file.parser_version,
+                            "source_sha256": expected_hash,
+                            "text_sha256": hashlib.sha256(
+                                normalized.encode()
+                            ).hexdigest(),
+                            "char_count": len(normalized),
+                        }
+                task.node_progress = progress
+            file.parse_status, file.parse_error, file.parsed_at = (
+                "completed" if finalize else "running",
+                None,
+                utcnow(),
+            )
         return [
-            {"file_id": str(file_id), "page_no": i, "text": t} for i, _, t in outputs
+            {
+                "file_id": str(file_id),
+                "block_id": "document",
+                "page_no": None,
+                "text": normalized,
+            }
         ]
-    except (BusinessError, OSError):
+    except (BusinessError, OSError) as exc:
         async with db.session() as session:
             file = await require(session, File, file_id)
             file.parse_status, file.parse_error = (
                 "failed",
-                "PDF 解析失败，请检查原件或扫描件",
+                exc.message if isinstance(exc, BusinessError) else "解析产物保存失败",
             )
         raise

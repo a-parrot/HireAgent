@@ -33,6 +33,12 @@ function extractDetail(data: unknown): string | undefined {
   return undefined
 }
 
+http.interceptors.request.use(config => {
+  const csrf = document.cookie.split('; ').find(c => c.startsWith('hireagent_csrf='))?.split('=').slice(1).join('=')
+  if (csrf && !['get', 'head', 'options'].includes(config.method || 'get')) config.headers.set('X-CSRF-Token', decodeURIComponent(csrf))
+  return config
+})
+
 http.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -40,9 +46,14 @@ http.interceptors.response.use(
     let message = '网络请求失败，请检查后端服务是否可用'
     if (error.response) {
       status = error.response.status
+      if (status === 401 && !String(error.config?.url).startsWith('/auth/')) window.dispatchEvent(new Event('auth-expired'))
       message = extractDetail(error.response.data) ?? `请求失败（HTTP ${status}）`
+    } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      message = '请求超时，暂时无法确认最新状态，请稍后刷新'
+    } else if (error.code === 'ERR_CANCELED') {
+      message = '请求已取消'
     } else if (error.request) {
-      message = '无法连接后端服务'
+      message = '无法连接后端服务，请检查后端是否启动或网络是否正常'
     }
     return Promise.reject(new ApiError(status, message))
   },

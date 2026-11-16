@@ -84,3 +84,14 @@ async def preview(request: Request, file_id: int):
     return FileResponse(
         path, media_type="application/pdf", content_disposition_type="inline"
     )
+
+
+@router.get("/files/{file_id}/content")
+async def parsed_content(request: Request, file_id: int):
+    sources = await resumes.read_parsed_content(
+        request.app.state.mysql, request.app.state.settings, file_id
+    )
+    return {
+        "file_id": str(file_id),
+        "markdown": "\n\n".join(source["text"] for source in sources),
+    }

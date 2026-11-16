@@ -6,8 +6,9 @@ import json
 from sqlalchemy import select
 
 from app.core.errors import BusinessError
-from app.models.mysql.entities import Batch, Candidate, Event, utcnow
+from app.models.mysql.entities import Batch, Candidate, Event, NodeExecution, utcnow
 from app.repositories.common import require, serialize
+from app.repositories.evaluation_repo.visibility import ensure_visible
 from app.services.resume_service.resumes import candidate_detail
 
 
@@ -34,16 +35,72 @@ async def start_batch(db, runtime, batch_id):
     return {"batch_id": str(batch_id), "status": "running", "already_started": False}
 
 
-async def retry(db, runtime, candidate_id):
+async def retry(db, runtime, candidate_id, *, cached_review_only=False):
     async with (
         runtime.locks.setdefault(candidate_id, asyncio.Lock()),
         db.session() as session,
     ):
         candidate = await require(session, Candidate, candidate_id, lock=True)
+        await ensure_visible(session, candidate_id)
         if candidate.processing_status != "failed":
             raise BusinessError("仅失败候选人可以重试", 409)
+        if cached_review_only:
+            from app.agents.resume_evaluation_agent.scoring import (
+                FLOW_VERSION,
+                LEGACY_FLOW_VERSION,
+            )
+
+            batch = await require(session, Batch, candidate.batch_id)
+            required = {
+                "parse_pdf": "pages",
+                "analyze_resume": "analysis",
+                "evaluate_candidate": "evaluation",
+                "route_candidate": "summary",
+                "review_evaluation": "verification",
+                "summarize_result": "summary",
+            }
+            if batch.rule_snapshot.get("evaluation_flow") in (
+                FLOW_VERSION,
+                LEGACY_FLOW_VERSION,
+            ):
+                required = {
+                    "parse_pdf": "pages",
+                    "screen_hard_conditions": "screening",
+                    "extract_scoring_evidence": "analysis",
+                    "calculate_score": "summary",
+                }
+                if batch.rule_snapshot.get("evaluation_flow") == FLOW_VERSION:
+                    required.update(
+                        verify_hard_conditions="screening",
+                        verify_scoring_evidence="analysis",
+                    )
+            rows = (
+                await session.execute(
+                    select(NodeExecution.node_name, NodeExecution.output_data).where(
+                        NodeExecution.candidate_id == candidate_id,
+                        NodeExecution.status == "succeeded",
+                    )
+                )
+            ).all()
+            saved = {
+                name
+                for name, output in rows
+                if name in required
+                and isinstance(output, dict)
+                and isinstance(
+                    output.get(required[name]), list if name == "parse_pdf" else dict
+                )
+                and output[required[name]]
+            }
+            if (
+                candidate.error_node != "human_review"
+                or candidate.review_status != "pending"
+                or candidate.recommendation != "needs_review"
+                or not required.keys() <= saved
+            ):
+                raise BusinessError("缺少完整的已保存评估结果，不能无模型恢复审核", 409)
         candidate.retry_count += 1
-        candidate.processing_status = "running"
+        candidate.processing_status = "pending"
         batch = await require(session, Batch, candidate.batch_id, lock=True)
         batch.status = "running"
         batch.evaluation_completed_at = None
@@ -51,8 +108,12 @@ async def retry(db, runtime, candidate_id):
             Event(
                 batch_id=batch.id,
                 candidate_id=candidate_id,
-                event_type="retried",
-                message="人工触发失败节点重试",
+                event_type="review_recovery_requested"
+                if cached_review_only
+                else "retried",
+                message="复用已保存节点结果恢复待审核，不请求模型"
+                if cached_review_only
+                else "人工触发失败节点重试",
                 attempt_count=candidate.retry_count,
             )
         )

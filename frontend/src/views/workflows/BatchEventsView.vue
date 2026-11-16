@@ -8,8 +8,9 @@ import { ApiError } from '@/api/http'
 import { eventTypeLabels, eventLevelTypes, formatTime } from '@/utils/format'
 import type { BatchEvent } from '@/api/types'
 
+const props = defineProps<{ batchId?: string }>()
 const route = useRoute()
-const batchId = route.params.batchId as string
+const batchId = props.batchId || route.params.batchId as string
 
 const loading = ref(false)
 const items = ref<BatchEvent[]>([])

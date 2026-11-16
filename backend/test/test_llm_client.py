@@ -42,7 +42,9 @@ async def check_llm() -> int:
         return 0
     except BusinessError as exc:
         print(f"[失败] {exc.message}")
-        print("请检查 LLM_BASE_URL、LLM_MODEL、LLM_API_KEY 及模型开通权限。")
+        print(
+            "本地模型检查 LLAMA_BASE_URL、LLM_MODEL_NAME、LLAMA_API_KEY；云模型检查 LLM_BASE_URL、LLM_MODEL、LLM_API_KEY。"
+        )
         return 1
     finally:
         await client.close()

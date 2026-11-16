@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { auth, can } from '@/stores/auth'
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -31,7 +32,7 @@ const editForm = reactive({
 })
 
 const ruleEditorRef = ref<InstanceType<typeof RuleEditor>>()
-const publishForm = reactive({ operator_name: '' })
+const publishForm = reactive({ operator_name: auth.user?.display_name || '' })
 
 async function load() {
   loading.value = true
@@ -55,6 +56,7 @@ onBeforeRouteLeave(async () => {
 })
 
 function startEdit() {
+  if (!can('jobs.write')) return
   const j = job.value
   if (!j) return
   editForm.name = j.name
@@ -118,7 +120,7 @@ async function confirmPublish() {
     })
     ElMessage.success('规则版本已发布')
     publishDialogVisible.value = false
-    publishForm.operator_name = ''
+    publishForm.operator_name = auth.user?.display_name || ''
     await load()
   } catch (err) {
     if (err instanceof ApiError) ElMessage.error(err.message)
@@ -146,10 +148,10 @@ function viewSnapshot(version: JobRuleVersion) {
               {{ job.status === 'active' ? '启用' : '已停用' }}
             </el-tag>
             <el-tag type="primary" effect="plain">草稿版本 v{{ job.draft_version }}</el-tag>
-            <el-button v-if="!editing" size="small" @click="startEdit">
+            <el-button v-permission="'jobs.write'" v-if="!editing" size="small" @click="startEdit">
               编辑岗位与规则
             </el-button>
-            <el-button
+            <el-button v-permission="'jobs.write'"
               v-if="job.status === 'active' && !editing"
               size="small"
               type="primary"
@@ -186,8 +188,8 @@ function viewSnapshot(version: JobRuleVersion) {
             <RuleEditor ref="ruleEditorRef" v-model="editForm.draft_rules" />
           </el-form-item>
           <el-form-item>
-            <el-button :loading="saving" type="primary" @click="saveEdit">保存草稿</el-button>
-            <el-button v-if="job.status === 'active'" :disabled="saving || publishing" @click="saveAndPublish">保存并发布</el-button>
+            <el-button v-permission="'jobs.write'" :loading="saving" type="primary" @click="saveEdit">保存草稿</el-button>
+            <el-button v-permission="'jobs.write'" v-if="job.status === 'active'" :disabled="saving || publishing" @click="saveAndPublish">保存并发布</el-button>
             <el-button @click="editing = false; load()">取消</el-button>
             <span class="muted">保存成功后草稿版本自动 +1</span>
           </el-form-item>
@@ -230,12 +232,12 @@ function viewSnapshot(version: JobRuleVersion) {
             <el-tag>v{{ job?.draft_version }}</el-tag>
           </el-form-item>
           <el-form-item label="操作人" required>
-            <el-input v-model="publishForm.operator_name" maxlength="128" placeholder="招聘人员姓名" />
+            <el-input v-model="publishForm.operator_name" disabled maxlength="128" placeholder="招聘人员姓名" />
           </el-form-item>
         </el-form>
         <template #footer>
           <el-button @click="publishDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="publishing" @click="confirmPublish">确认发布</el-button>
+          <el-button v-permission="'jobs.write'" type="primary" :loading="publishing" @click="confirmPublish">确认发布</el-button>
         </template>
       </el-dialog>
 

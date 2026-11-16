@@ -66,3 +66,13 @@ async def export(
             "Content-Disposition": f'attachment; filename="batch-{batch_id}.{format}"'
         },
     )
+
+
+@router.post("/candidates/{candidate_id}/restore-review", status_code=202)
+async def restore_review(request: Request, candidate_id: int):
+    return await operations.retry(
+        request.app.state.mysql,
+        request.app.state.runtime,
+        candidate_id,
+        cached_review_only=True,
+    )

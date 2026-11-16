@@ -32,7 +32,7 @@ export const processingStatusTypes: Record<string, 'info' | 'warning' | 'success
 export const recommendationLabels: Record<string, string> = {
   recommended: '推荐',
   needs_review: '需复核',
-  deferred: '暂缓',
+  deferred: '不推荐',
 }
 
 export const recommendationTypes: Record<string, 'success' | 'warning' | 'info'> = {
@@ -102,6 +102,9 @@ export const actionStatusTypes: Record<string, 'info' | 'primary' | 'success' | 
 }
 
 export const eventTypeLabels: Record<string, string> = {
+  evaluation_deleted: '删除无效评估',
+  auto_scheduled: '自动生成面试预约',
+  review_recovery_requested: '缓存恢复待审核',
   batch_started: '评估启动',
   node_started: '节点开始',
   node_succeeded: '节点成功',

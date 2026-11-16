@@ -64,11 +64,15 @@ export interface Fact {
 export interface Evidence {
   evidence_id: string
   file_id: string
-  page_no: number
+  page_no: number | null
+  block_id?: string | null
   quote: string
 }
 
 export interface ConditionResult {
+  basis?: 'evidence' | 'not_found' | 'uncertain'
+  blocking?: boolean
+  condition_name?: string
   condition_id: string
   result: 'satisfied' | 'unsatisfied' | 'unknown'
   reason: string
@@ -76,6 +80,9 @@ export interface ConditionResult {
 }
 
 export interface DimensionScore {
+  dimension_name?: string
+  max_score?: number
+  matched?: boolean
   dimension_id: string
   score: number
   reason: string
@@ -194,7 +201,22 @@ export interface Reservation {
   updated_at: string
 }
 
+export interface RuleCondition {
+  operator?: 'all' | 'any'
+  id?: string
+  description?: string
+  items?: RuleCondition[]
+}
+
+export interface RuleSnapshot {
+  evaluation_flow?: string
+  hard_conditions?: RuleCondition
+  dimensions?: { id: string; name: string; max_score: number }[]
+}
+
 export interface CandidateDetail extends Candidate {
+  rule_snapshot?: RuleSnapshot
+  deleted?: boolean
   job_id: string
   rule_version_id: string
   review_history: Review[]
@@ -270,7 +292,7 @@ export interface PublishRequest {
 export interface ReviewRequest {
   operation: 'supplement' | 'approve' | 'defer'
   review_version: number
-  reason: string
+  reason?: string
   operator_name: string
   supplements?: { source: string; description: string }[] | null
 }

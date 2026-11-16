@@ -3,6 +3,7 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.errors import BusinessError
+from app.core.logging import logger, traced
 from app.models.mysql.entities import (
     ActionRecord,
     Candidate,
@@ -15,12 +16,23 @@ from app.repositories.common import require, serialize
 
 
 class ActionService:
-    def __init__(self, db, meeting, notification):
+    def __init__(self, db, meeting, notification, timeout=30):
         self.db, self.meeting, self.notification = db, meeting, notification
+        self.timeout = timeout
         self.locks = {}
 
     async def audit(self, session, reservation_id, action, status):
         reservation = await require(session, Reservation, reservation_id)
+        log = logger.bind(
+            reservation_id=reservation_id,
+            candidate_id=reservation.candidate_id,
+            action=action,
+            action_status=status,
+        )
+        log.log(
+            "WARNING" if status in ("failed", "uncertain") else "INFO",
+            "external.action_state",
+        )
         session.add(
             Event(
                 batch_id=reservation.batch_id,
@@ -92,6 +104,7 @@ class ActionService:
             await session.flush()
             return serialize(reservation)
 
+    @traced("external.approve", agent="interview", id_arg="reservation_id")
     async def approve(self, reservation_id, data):
         async with (
             self.locks.setdefault(reservation_id, asyncio.Lock()),
@@ -122,6 +135,7 @@ class ActionService:
             )
         return await self.execute(reservation_id)
 
+    @traced("external.execute", agent="interview", id_arg="reservation_id")
     async def execute(self, reservation_id):
         async with self.locks.setdefault(reservation_id, asyncio.Lock()):
             meeting_result = None
@@ -183,11 +197,12 @@ class ActionService:
                     record_id = row.id
                     await self.audit(session, reservation_id, action_type, "started")
                 try:
-                    result = (
-                        await client.create(preview, key)
-                        if action_type == "meeting"
-                        else await client.send(preview, meeting_result, key)
-                    )
+                    async with asyncio.timeout(self.timeout):
+                        result = (
+                            await client.create(preview, key)
+                            if action_type == "meeting"
+                            else await client.send(preview, meeting_result, key)
+                        )
                     if not result.get("external_id"):
                         raise ValueError(
                             "Platform did not return an external identifier"
@@ -244,7 +259,8 @@ class ActionService:
                 if not client.configured:
                     continue
                 try:
-                    result = await client.query(key, external_id)
+                    async with asyncio.timeout(self.timeout):
+                        result = await client.query(key, external_id)
                 except Exception:  # noqa: BLE001 - query failure cannot justify another side effect
                     async with self.db.session() as session:
                         row = await require(session, ActionRecord, record_id)

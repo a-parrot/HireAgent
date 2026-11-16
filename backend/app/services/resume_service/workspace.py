@@ -3,15 +3,17 @@
 import asyncio
 import hashlib
 import re
-import zipfile
+from contextlib import AsyncExitStack
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.agents.resume_evaluation_agent.scoring import new_snapshot
 from app.core.errors import BusinessError
 from app.models.mysql.entities import (
+    ActionRecord,
     Batch,
     Candidate,
     Event,
@@ -21,11 +23,20 @@ from app.models.mysql.entities import (
     Job,
     JobResume,
     JobRuleVersion,
+    NodeExecution,
+    Reservation,
+    Slot,
     utcnow,
 )
 from app.repositories.common import require, serialize
+from app.repositories.evaluation_repo.visibility import (
+    DELETED_EVENT,
+    is_deleted,
+    visible_candidates,
+)
 from app.repositories.job_repo.jobs import get_job
 from app.services.resume_service.resumes import safe_path
+from app.services.schedule_service.scheduling import calendar_lock
 
 
 def file_sha(path):
@@ -40,7 +51,7 @@ async def job_summary(db):
                 select(
                     Job,
                     func.count(JobResume.id),
-                    func.sum(File.parse_status == "completed"),
+                    func.sum(case((File.parse_status == "completed", 1), else_=0)),
                 )
                 .outerjoin(
                     JobResume,
@@ -60,7 +71,9 @@ async def job_summary(db):
         }
 
 
-async def list_resumes(db, job_id, page=1, page_size=20, keyword=None, status=None):
+async def list_resumes(
+    db, job_id, page=1, page_size=20, keyword=None, status=None, evaluation_status=None
+):
     async with db.session() as s:
         await get_job(s, job_id)
         q = (
@@ -72,6 +85,37 @@ async def list_resumes(db, job_id, page=1, page_size=20, keyword=None, status=No
             q = q.where(JobResume.display_name.contains(keyword, autoescape=True))
         if status:
             q = q.where(File.parse_status == status)
+        if evaluation_status:
+            latest_id = (
+                select(func.max(Candidate.id))
+                .join(Batch, Batch.id == Candidate.batch_id)
+                .where(Batch.job_id == job_id, Candidate.file_id == File.id)
+                .correlate(File)
+                .scalar_subquery()
+            )
+            active = (
+                select(Candidate.id)
+                .join(Batch, Batch.id == Candidate.batch_id)
+                .where(Candidate.id == latest_id, visible_candidates())
+            )
+            if evaluation_status == "none":
+                q = q.where(~active.exists())
+            else:
+                if evaluation_status == "queued":
+                    active = active.where(
+                        Candidate.processing_status == "pending",
+                        Batch.started_at.is_not(None),
+                    )
+                elif evaluation_status == "pending":
+                    active = active.where(
+                        Candidate.processing_status == "pending",
+                        Batch.started_at.is_(None),
+                    )
+                else:
+                    active = active.where(
+                        Candidate.processing_status == evaluation_status
+                    )
+                q = q.where(active.exists())
         total = await s.scalar(select(func.count()).select_from(q.subquery()))
         rows = (
             await s.execute(
@@ -115,12 +159,31 @@ async def latest_evaluations(s, job_id, file_ids):
                 Candidate.total_score,
                 Candidate.recommendation,
                 Candidate.error_message,
+                Candidate.current_node,
+                Candidate.updated_at,
+                Candidate.schedule_status,
+                Candidate.waitlist_reason,
                 Batch.started_at,
             )
             .join(Batch, Batch.id == Candidate.batch_id)
-            .where(Candidate.id.in_(ids))
+            .where(Candidate.id.in_(ids), visible_candidates())
         )
     ).all()
+    progress = {}
+    if rows:
+        running_nodes = (
+            await s.execute(
+                select(NodeExecution.candidate_id, NodeExecution.output_data).where(
+                    NodeExecution.candidate_id.in_([r.id for r in rows]),
+                    NodeExecution.status == "running",
+                )
+            )
+        ).all()
+        progress = {
+            cid: output.get("progress")
+            for cid, output in running_nodes
+            if isinstance(output, dict)
+        }
     return {
         r.file_id: {
             "id": str(r.id),
@@ -128,6 +191,11 @@ async def latest_evaluations(s, job_id, file_ids):
             "total_score": float(r.total_score) if r.total_score is not None else None,
             "recommendation": r.recommendation,
             "error_message": r.error_message,
+            "current_node": r.current_node,
+            "progress": progress.get(r.id),
+            "updated_at": r.updated_at.isoformat() + "Z" if r.updated_at else None,
+            "schedule_status": r.schedule_status,
+            "waitlist_reason": r.waitlist_reason,
             "queued": r.started_at is not None,
         }
         for r in rows
@@ -177,8 +245,8 @@ async def upload_one(db, config, job_id, upload, expected=None):
     if len(filename) > 255:
         raise BusinessError("文件名不能超过 255 个字符")
     suffix = Path(filename).suffix.lower()
-    if suffix not in (".pdf", ".docx"):
-        raise BusinessError("仅支持 PDF 和 DOCX")
+    if suffix != ".pdf":
+        raise BusinessError("仅支持 PDF 简历")
     data = await upload.read(config.upload_max_mb * 1024 * 1024 + 1)
     if not data or len(data) > config.upload_max_mb * 1024 * 1024:
         raise BusinessError(f"文件为空或超过 {config.upload_max_mb} MB")
@@ -189,15 +257,6 @@ async def upload_one(db, config, job_id, upload, expected=None):
         raise BusinessError("SHA-256 校验失败，文件未被接收")
     if suffix == ".pdf" and b"%PDF-" not in data[:1024]:
         raise BusinessError("文件内容不是有效 PDF")
-    if suffix == ".docx":
-        import io
-
-        try:
-            with zipfile.ZipFile(io.BytesIO(data)) as z:
-                if "word/document.xml" not in z.namelist():
-                    raise BusinessError("文件内容不是有效 DOCX")
-        except zipfile.BadZipFile as exc:
-            raise BusinessError("文件内容不是有效 DOCX") from exc
     relative = f"uploads/{uuid4().hex}{suffix}"
     path = safe_path(config, relative)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,9 +278,7 @@ async def upload_one(db, config, job_id, upload, expected=None):
                             storage_path=relative,
                             size_bytes=len(data),
                             file_type=suffix[1:],
-                            media_type="application/pdf"
-                            if suffix == ".pdf"
-                            else "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            media_type="application/pdf",
                         )
                         s.add(file)
                         await s.flush()
@@ -352,7 +409,11 @@ async def detail(db, config, job_id, resume_id):
                     Candidate.created_at,
                 )
                 .join(Batch, Batch.id == Candidate.batch_id)
-                .where(Batch.job_id == job_id, Candidate.file_id == file.id)
+                .where(
+                    Batch.job_id == job_id,
+                    Candidate.file_id == file.id,
+                    visible_candidates(),
+                )
                 .order_by(Candidate.id.desc())
             )
         ).all()
@@ -375,6 +436,15 @@ async def detail(db, config, job_id, resume_id):
         )
     except OSError:
         result["sha256_verified"] = False
+    result["markdown"] = None
+    if file.normalized_markdown_path:
+        try:
+            result["markdown"] = await asyncio.to_thread(
+                safe_path(config, file.normalized_markdown_path).read_text,
+                encoding="utf-8",
+            )
+        except OSError:
+            result["markdown"] = None
     result["pages"] = []
     for page in pages:
         try:
@@ -387,11 +457,108 @@ async def detail(db, config, job_id, resume_id):
     return result
 
 
-async def remove(db, job_id, resume_id):
-    async with db.session() as s:
+async def remove(db, job_id, resume_id, runtime=None):
+    async with calendar_lock, AsyncExitStack() as stack, db.session() as s:
         await get_job(s, job_id, lock=True)
         row = await resume_row(s, job_id, resume_id, lock=True)
+        candidates = (
+            await s.scalars(
+                select(Candidate)
+                .join(Batch, Batch.id == Candidate.batch_id)
+                .where(Batch.job_id == job_id, Candidate.file_id == row.file_id)
+                .order_by(Candidate.id)
+            )
+        ).all()
+        for candidate in candidates:
+            if runtime is not None:
+                lock = runtime.locks.setdefault(candidate.id, asyncio.Lock())
+                if lock.locked():
+                    raise BusinessError("关联评估仍在处理中，请等待完成后删除", 409)
+                await stack.enter_async_context(lock)
+            if candidate.processing_status == "running":
+                raise BusinessError("关联评估仍在处理中，请等待完成后删除", 409)
+        # Lock and validate the whole dependency set before modifying any record.
+        reservations = (
+            await s.scalars(
+                select(Reservation)
+                .where(Reservation.candidate_id.in_([c.id for c in candidates]))
+                .with_for_update()
+            )
+        ).all()
+        actions = (
+            (
+                await s.scalars(
+                    select(ActionRecord)
+                    .where(
+                        ActionRecord.reservation_id.in_([r.id for r in reservations])
+                    )
+                    .with_for_update()
+                )
+            ).all()
+            if reservations
+            else []
+        )
+        if any(
+            a.attempt_count or a.status in ("running", "succeeded", "uncertain")
+            for a in actions
+        ):
+            raise BusinessError(
+                "关联预约已有会议或通知执行记录，请先核实外部安排，当前简历及关联数据均未删除",
+                409,
+            )
+        for reservation in reservations:
+            slot = await require(s, Slot, reservation.slot_id, lock=True)
+            s.add(
+                Event(
+                    batch_id=reservation.batch_id,
+                    candidate_id=reservation.candidate_id,
+                    event_type="interview_cancelled",
+                    message="删除岗位简历，级联取消面试预约",
+                    details={
+                        "reservation": serialize(reservation),
+                        "slot": serialize(slot),
+                    },
+                )
+            )
+        for action in actions:
+            await s.delete(action)
+        await s.flush()
+        slot_ids = [r.slot_id for r in reservations]
+        for reservation in reservations:
+            await s.delete(reservation)
+        await s.flush()
+        for slot_id in slot_ids:
+            await s.delete(await require(s, Slot, slot_id))
+        for candidate in candidates:
+            if not await is_deleted(s, candidate.id):
+                s.add(
+                    Event(
+                        batch_id=candidate.batch_id,
+                        candidate_id=candidate.id,
+                        event_type=DELETED_EVENT,
+                        message="删除岗位简历，级联删除关联评估及面试排期",
+                        details={"job_id": str(job_id), "resume_id": str(resume_id)},
+                    )
+                )
+            candidate.schedule_status, candidate.waitlist_reason = "unscheduled", None
         row.deleted_at = utcnow()
+        await s.flush()
+        for batch_id in sorted({c.batch_id for c in candidates}):
+            batch = await require(s, Batch, batch_id, lock=True)
+            active = await s.scalar(
+                select(Candidate.id)
+                .where(
+                    Candidate.batch_id == batch_id,
+                    Candidate.processing_status.in_(["pending", "running"]),
+                    visible_candidates(),
+                )
+                .limit(1)
+            )
+            batch.status = "running" if active else "evaluation_done"
+            if not active:
+                batch.evaluation_completed_at = (
+                    batch.evaluation_completed_at or utcnow()
+                )
 
 
 async def retry(db, job_id, resume_id):
@@ -399,12 +566,20 @@ async def retry(db, job_id, resume_id):
         row = await resume_row(s, job_id, resume_id)
         file = await require(s, File, row.file_id, lock=True)
         if file.parse_status == "completed":
-            raise BusinessError("该简历已解析完成，无需重试", 409)
+            file.parse_status = "pending"
         return await queue_file(s, file)
 
 
 async def create_evaluation(
-    db, job_id, resume_ids, version_id, name=None, *, config=None, evaluation_key=None
+    db,
+    job_id,
+    resume_ids,
+    version_id,
+    name=None,
+    *,
+    config=None,
+    evaluation_key=None,
+    allow_unparsed=False,
 ):
     if not resume_ids or len(set(resume_ids)) != len(resume_ids):
         raise BusinessError("请选择不重复的简历")
@@ -426,7 +601,7 @@ async def create_evaluation(
         ).all()
         if len(rows) != len(resume_ids):
             raise BusinessError("部分简历已移除或不属于当前岗位")
-        if any(f.parse_status != "completed" for _, f in rows):
+        if not allow_unparsed and any(f.parse_status != "completed" for _, f in rows):
             raise BusinessError("请仅选择解析完成的简历")
         if config is not None:
             for _, file in rows:
@@ -469,7 +644,7 @@ async def create_evaluation(
         batch = Batch(
             job_id=job_id,
             rule_version_id=version_id,
-            rule_snapshot=version.rule_snapshot,
+            rule_snapshot=new_snapshot(version.rule_snapshot),
             name=name or f"{job.name} 简历评估",
         )
         s.add(batch)

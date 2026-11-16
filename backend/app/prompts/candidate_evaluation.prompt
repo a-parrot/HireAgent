@@ -5,7 +5,7 @@
 # 输入说明
 rules：招聘人员手动配置并发布的岗位信息、硬条件树、dimensions、评分标准、各项上限、证据要求、总分阈值及排序配置。
 facts：简历分析智能体提取的岗位相关事实。
-evidence：可引用的 evidence_id、file_id、page_no、quote。
+evidence：可引用的 evidence_id、file_id、block_id、quote（旧记录可带 page_no）。
 所有判断只针对本次输入；不得使用其他岗位、历史候选人或常识补全当前候选人的经历。
 
 # 硬条件判断

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { auth } from '@/stores/auth'
 import { reactive, ref, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -11,12 +12,12 @@ const visible = ref(false)
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
 const createdJob = ref<Job | null>(null)
-const form = reactive({ name: '', responsibilities: '', requirements: '', draft_rules: null as Record<string, unknown> | null, operator_name: '' })
+const form = reactive({ name: '', responsibilities: '', requirements: '', draft_rules: null as Record<string, unknown> | null, operator_name: auth.user?.display_name || '' })
 const ruleEditorRef = ref<InstanceType<typeof RuleEditor>>()
 const rules: FormRules = { name: [{ required: true, whitespace: true, message: '请输入岗位名称', trigger: 'blur' }] }
 async function open() {
   createdJob.value = null
-  Object.assign(form, { name: '', responsibilities: '', requirements: '', draft_rules: null, operator_name: '' })
+  Object.assign(form, { name: '', responsibilities: '', requirements: '', draft_rules: null, operator_name: auth.user?.display_name || '' })
   visible.value = true
   await nextTick()
   formRef.value?.clearValidate()
@@ -57,7 +58,7 @@ defineExpose({ open })
     <el-form ref="formRef" :model="form" :rules="rules" :disabled="submitting" label-position="top" scroll-to-error>
       <div class="basic-fields"><el-form-item label="岗位名称" prop="name"><el-input v-model="form.name" maxlength="200" show-word-limit placeholder="例如：高级后端工程师" /></el-form-item><div class="two-columns"><el-form-item label="岗位职责"><el-input v-model="form.responsibilities" type="textarea" :rows="3" placeholder="这个岗位主要负责什么？" /></el-form-item><el-form-item label="任职要求"><el-input v-model="form.requirements" type="textarea" :rows="3" placeholder="需要哪些工作经历和专业能力？" /></el-form-item></div></div>
       <RuleEditor ref="ruleEditorRef" v-model="form.draft_rules" />
-      <el-form-item label="发布人" style="margin-top: 24px"><el-input v-model="form.operator_name" maxlength="128" placeholder="创建并发布时填写；仅保存草稿无需填写" style="max-width: 360px" /></el-form-item>
+      <el-form-item label="发布人" style="margin-top: 24px"><el-input v-model="form.operator_name" disabled maxlength="128" placeholder="创建并发布时填写；仅保存草稿无需填写" style="max-width: 360px" /></el-form-item>
     </el-form>
     <template #footer><div class="dialog-footer"><span class="muted">发布后，新的评估自动带入这套规则。</span><div><el-button :disabled="submitting" @click="close">取消</el-button><el-button :loading="submitting" @click="submit(false)">保存草稿</el-button><el-button type="primary" :loading="submitting" @click="submit(true)">创建并发布</el-button></div></div></template>
   </el-dialog>

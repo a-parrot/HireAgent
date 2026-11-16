@@ -9,3 +9,5 @@ class RecruitmentState(TypedDict, total=False):
     verification: dict[str, Any]
     summary: dict[str, Any]
     decision: str
+    screening: dict[str, Any]
+    scoring_matches: list[dict[str, Any]]

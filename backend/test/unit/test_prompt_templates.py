@@ -8,7 +8,13 @@ from pydantic import SecretStr
 from app.clients.llm_client import LLMClient
 from app.core.config import Settings
 from app.prompts.prompt_loader import load_prompt, prompt_version, render_messages
-from app.schemas.agents import Analysis, Evaluation, Verification
+from app.schemas.agents import (
+    Analysis,
+    Evaluation,
+    HardConditionScreening,
+    ScoringEvidence,
+    Verification,
+)
 
 
 @pytest.mark.parametrize(
@@ -25,6 +31,14 @@ from app.schemas.agents import Analysis, Evaluation, Verification
             },
         ),
         ("candidate_evaluation", Evaluation, {"facts": [], "evidence": []}),
+        ("hard_condition_screening", HardConditionScreening, {"pages": []}),
+        ("hard_condition_review", HardConditionScreening, {"pages": []}),
+        (
+            "scoring_evidence_review",
+            ScoringEvidence,
+            {"pages": [], "chunk_prefix": "v0_"},
+        ),
+        ("scoring_evidence", ScoringEvidence, {"pages": [], "chunk_prefix": "score0_"}),
         (
             "evaluation_review",
             Verification,

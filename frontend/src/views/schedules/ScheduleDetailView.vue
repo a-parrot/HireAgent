@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { auth } from '@/stores/auth'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, View, EditPen, Delete } from '@element-plus/icons-vue'
 import {
   approveActions,
   createSlot,
@@ -16,7 +17,7 @@ import {
   reconcileActions,
   retryActions,
 } from '@/api/schedules'
-import { getBatch, listCandidates } from '@/api/batches'
+import { getBatch, listBatchCandidates } from '@/api/batches'
 import { ApiError } from '@/api/http'
 import { formatRange } from '@/utils/datetime'
 import { formatTime } from '@/utils/format'
@@ -29,8 +30,10 @@ import {
 } from '@/utils/format'
 import type { ActionPreviewResult, BatchDetail, Candidate, Slot } from '@/api/types'
 
+const props = defineProps<{ batchId?: string; actionsOnly?: boolean; reservationId?: string }>()
+const emit = defineEmits<{ changed: [] }>()
 const route = useRoute()
-const batchId = route.params.batchId as string
+const batchId = props.batchId || route.params.batchId as string
 
 const loading = ref(false)
 const batch = ref<BatchDetail | null>(null)
@@ -44,7 +47,8 @@ const slotDialogVisible = ref(false)
 const slotSubmitting = ref(false)
 const editingSlotId = ref<string | null>(null)
 const slotForm = reactive({
-  range: [] as string[],
+  start: '',
+  end: '',
   interviewer: '',
 })
 
@@ -54,7 +58,7 @@ const previewLoading = ref(false)
 const previewData = ref<ActionPreviewResult | null>(null)
 const previewForm = reactive({ recipient: '', content: '' })
 const previewDirty = ref(false)
-const operatorName = ref('')
+const operatorName = ref(auth.user?.display_name || '')
 const previewSubmitting = ref(false)
 
 const slotNameMap = computed<Record<string, string>>(() => {
@@ -66,7 +70,7 @@ const slotNameMap = computed<Record<string, string>>(() => {
 })
 
 const canSchedule = computed(
-  () => batch.value?.status === 'evaluation_done' && slots.value.length === 4,
+  () => batch.value?.status === 'evaluation_done' && slots.value.length > 0,
 )
 
 async function loadAll() {
@@ -76,14 +80,14 @@ async function loadAll() {
       getBatch(batchId),
       listSlots(batchId).catch(() => [] as Slot[]),
       getSchedule(batchId).catch(() => ({ reservations: [], waitlist: [] })),
-      listCandidates({ batch_id: batchId, page: 1, page_size: 1000 }),
+      listBatchCandidates(batchId),
     ])
     batch.value = batchData
     slots.value = slotData
     reservations.value = scheduleData.reservations
     waitlist.value = scheduleData.waitlist
     const names: Record<string, string> = {}
-    for (const c of candidateData.items) {
+    for (const c of candidateData) {
       names[c.id] = c.name || c.original_filename
     }
     candidateNames.value = names
@@ -94,12 +98,16 @@ async function loadAll() {
   }
 }
 
-onMounted(loadAll)
+onMounted(async () => {
+  await loadAll()
+  if (props.reservationId) await openPreview(props.reservationId)
+})
 
 /* 时段管理 */
 function openAddSlot() {
   editingSlotId.value = null
-  slotForm.range = []
+  slotForm.start = ''
+  slotForm.end = ''
   slotForm.interviewer = ''
   slotDialogVisible.value = true
 }
@@ -111,20 +119,28 @@ function openEditSlot(slot: Slot) {
   const pad = (n: number) => String(n).padStart(2, '0')
   const fmt = (d: Date) =>
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  slotForm.range = [fmt(start), fmt(end)]
+  slotForm.start = fmt(start)
+  slotForm.end = fmt(end)
   slotForm.interviewer = slot.interviewer ?? ''
   slotDialogVisible.value = true
 }
 
+function onSlotStartChange(value: string | null) {
+  if (!value) { slotForm.end = ''; return }
+  const end = new Date(new Date(value).getTime() + 45 * 60 * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  slotForm.end = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`
+}
+
 async function submitSlot() {
-  if (!slotForm.range || slotForm.range.length !== 2) {
+  if (!slotForm.start || !slotForm.end) {
     ElMessage.warning('请选择开始与结束时间')
     return
   }
-  const startsAt = new Date(slotForm.range[0])
-  const endsAt = new Date(slotForm.range[1])
-  if (endsAt.getTime() - startsAt.getTime() !== 45 * 60 * 1000) {
-    ElMessage.warning('每个时段固定 45 分钟')
+  const startsAt = new Date(slotForm.start)
+  const endsAt = new Date(slotForm.end)
+  if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) {
+    ElMessage.warning('结束时间须晚于开始时间')
     return
   }
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -152,6 +168,7 @@ async function submitSlot() {
     }
     slotDialogVisible.value = false
     await loadAll()
+    emit('changed')
   } catch (err) {
     if (err instanceof ApiError) ElMessage.error(err.message)
   } finally {
@@ -171,6 +188,7 @@ async function removeSlot(slot: Slot) {
     await deleteSlot(slot.id)
     ElMessage.success('时段已删除')
     await loadAll()
+    emit('changed')
   } catch (err) {
     if (err instanceof ApiError) ElMessage.error(err.message)
   }
@@ -191,6 +209,7 @@ async function doSchedule() {
     const result = await generateSchedule(batchId)
     ElMessage.success(`排期完成：${result.reservations.length} 人已预约，${result.waitlist.length} 人候补`)
     await loadAll()
+    emit('changed')
   } catch (err) {
     if (err instanceof ApiError) ElMessage.error(err.message)
   }
@@ -257,6 +276,7 @@ async function approve() {
     previewData.value = data
     ElMessage.success('动作已批准并执行当前快照（未配置的平台会返回 not_configured）')
     await loadAll()
+    emit('changed')
   } catch (err) {
     if (err instanceof ApiError) ElMessage.error(err.message)
   } finally {
@@ -272,6 +292,7 @@ async function retry() {
     previewData.value = data
     ElMessage.success('已重试未成功动作')
     await loadAll()
+    emit('changed')
   } catch (err) {
     if (err instanceof ApiError) ElMessage.error(err.message)
   } finally {
@@ -287,6 +308,7 @@ async function reconcile() {
     previewData.value = data
     ElMessage.success('已向平台核实动作状态')
     await loadAll()
+    emit('changed')
   } catch (err) {
     if (err instanceof ApiError) ElMessage.error(err.message)
   } finally {
@@ -301,7 +323,7 @@ function onPreviewInput() {
 
 <template>
   <div v-loading="loading">
-    <el-card class="page-card">
+    <el-card v-if="!actionsOnly" class="page-card">
       <template #header>
         <div class="toolbar" style="margin-bottom: 0">
           <span class="section-title" style="margin: 0">评估记录排期</span>
@@ -310,7 +332,7 @@ function onPreviewInput() {
           </el-tag>
           <div class="spacer" />
           <el-button :icon="Refresh" circle @click="loadAll" />
-          <el-button type="primary" :disabled="!canSchedule" @click="doSchedule">统一排期</el-button>
+          <el-button v-permission="'schedules.write'" type="primary" :disabled="!canSchedule" @click="doSchedule">统一排期</el-button>
         </div>
       </template>
       <el-descriptions v-if="batch" :column="3" border size="small">
@@ -328,13 +350,12 @@ function onPreviewInput() {
       />
     </el-card>
 
-    <el-card class="page-card">
+    <el-card v-if="!actionsOnly" class="page-card">
       <template #header>
         <div class="toolbar" style="margin-bottom: 0">
-          <span class="section-title" style="margin: 0">面试时段（{{ slots.length }}/4，每个固定 45 分钟）</span>
+          <span class="section-title" style="margin: 0">面试时段（{{ slots.length }} 个，默认 45 分钟，可调整）</span>
           <div class="spacer" />
-          <el-button
-            v-if="slots.length < 4"
+          <el-button v-permission="'schedules.write'"
             size="small"
             type="primary"
             @click="openAddSlot"
@@ -352,19 +373,18 @@ function onPreviewInput() {
         <el-table-column label="面试官" width="140">
           <template #default="{ row }">{{ row.interviewer ?? '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="160">
+        <el-table-column label="操作" width="100">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="openEditSlot(row)">修改</el-button>
-            <el-button size="small" link type="danger" @click="removeSlot(row)">删除</el-button>
+            <div class="row-actions"><el-tooltip content="修改时段"><el-button v-permission="'schedules.write'" circle text type="primary" :icon="EditPen" aria-label="修改时段" @click="openEditSlot(row)" /></el-tooltip><el-tooltip content="删除时段"><el-button v-permission="'schedules.write'" circle text type="danger" :icon="Delete" aria-label="删除时段" @click="removeSlot(row)" /></el-tooltip></div>
           </template>
         </el-table-column>
       </el-table>
-      <span v-else class="muted">尚未添加时段</span>
+      <span v-else class="muted">尚未添加时段；新增可用时段后会自动安排已准入的候选人</span>
     </el-card>
 
     <el-card class="page-card">
       <template #header><span class="section-title" style="margin: 0">预约（{{ reservations.length }}）</span></template>
-      <el-table v-if="reservations.length" :data="reservations" border size="small">
+      <el-table v-if="reservations.length" :data="reservationId ? reservations.filter(row => row.id === reservationId) : reservations" border size="small">
         <el-table-column label="候选人" min-width="150">
           <template #default="{ row }">{{ candidateNames[row.candidate_id] ?? row.candidate_id }}</template>
         </el-table-column>
@@ -381,16 +401,16 @@ function onPreviewInput() {
         <el-table-column label="批准时间" width="160">
           <template #default="{ row }">{{ formatTime(row.approved_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="130" fixed="right">
+        <el-table-column label="操作" width="80" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openPreview(row.id)">动作审批</el-button>
+            <el-tooltip content="动作审批"><el-button v-permission="'actions.execute'" circle text type="primary" :icon="View" aria-label="动作审批" @click="openPreview(row.id)" /></el-tooltip>
           </template>
         </el-table-column>
       </el-table>
       <span v-else class="muted">尚无预约记录，评估完成且配置 4 个时段后可执行统一排期。</span>
     </el-card>
 
-    <el-card>
+    <el-card v-if="!actionsOnly">
       <template #header><span class="section-title" style="margin: 0">候补（{{ waitlist.length }}）</span></template>
       <el-table v-if="waitlist.length" :data="waitlist" border size="small">
         <el-table-column label="候选人" min-width="150">
@@ -405,9 +425,9 @@ function onPreviewInput() {
         <el-table-column label="候补原因" min-width="240">
           <template #default="{ row }">{{ row.waitlist_reason ?? '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="80">
           <template #default="{ row }">
-            <el-button size="small" @click="$router.push(`/candidates/${row.id}`)">详情</el-button>
+            <el-tooltip content="查看候选人详情"><el-button circle text type="primary" :icon="View" aria-label="查看候选人详情" @click="$router.push(`/candidates/${row.id}`)" /></el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -421,17 +441,20 @@ function onPreviewInput() {
       width="520px"
     >
       <el-form label-width="90px">
-        <el-form-item label="时间段" required>
+        <el-form-item label="开始时间" required>
           <el-date-picker
-            v-model="slotForm.range"
-            type="datetimerange"
+            v-model="slotForm.start"
+            type="datetime"
             value-format="YYYY-MM-DDTHH:mm"
             format="YYYY-MM-DD HH:mm"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间（+45 分钟）"
+            placeholder="选择开始时间"
+            @change="onSlotStartChange"
             style="width: 100%"
           />
-          <div class="muted" style="margin-top: 4px">结束时间须恰好晚于开始 45 分钟</div>
+          <div class="muted" style="margin-top: 4px">选择开始时间后默认安排 45 分钟，可手动调整结束时间</div>
+        </el-form-item>
+        <el-form-item label="结束时间" required>
+          <el-date-picker v-model="slotForm.end" type="datetime" value-format="YYYY-MM-DDTHH:mm" format="YYYY-MM-DD HH:mm" placeholder="默认开始后 45 分钟" style="width: 100%" />
         </el-form-item>
         <el-form-item label="面试官">
           <el-input v-model="slotForm.interviewer" placeholder="可选" />
@@ -439,7 +462,7 @@ function onPreviewInput() {
       </el-form>
       <template #footer>
         <el-button @click="slotDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="slotSubmitting" @click="submitSlot">保存</el-button>
+        <el-button v-permission="'schedules.write'" type="primary" :loading="slotSubmitting" @click="submitSlot">保存</el-button>
       </template>
     </el-dialog>
 
@@ -485,7 +508,7 @@ function onPreviewInput() {
           <div class="muted" style="margin-bottom: 12px">
             保存新版本会清除旧的授权；批准后执行当前版本快照。
           </div>
-          <el-button
+          <el-button v-permission="'actions.execute'"
             size="small"
             type="primary"
             :loading="previewSubmitting"
@@ -520,16 +543,16 @@ function onPreviewInput() {
 
           <div class="toolbar" style="margin-top: 16px">
             <el-input
-              v-model="operatorName"
+              v-model="operatorName" disabled
               maxlength="128"
               placeholder="操作人姓名"
               style="width: 200px"
             />
-            <el-button type="primary" :loading="previewSubmitting" @click="approve">
+            <el-button v-permission="'actions.execute'" type="primary" :loading="previewSubmitting" @click="approve">
               批准并执行
             </el-button>
-            <el-button :loading="previewSubmitting" @click="retry">重试未成功动作</el-button>
-            <el-button :loading="previewSubmitting" @click="reconcile">向平台核实</el-button>
+            <el-button v-permission="'actions.execute'" :loading="previewSubmitting" @click="retry">重试未成功动作</el-button>
+            <el-button v-permission="'actions.execute'" :loading="previewSubmitting" @click="reconcile">向平台核实</el-button>
           </div>
           <div class="muted" style="margin-top: 6px">
             平台未配置时批准仍会执行并返回 not_configured，不创建真实会议或发送通知。

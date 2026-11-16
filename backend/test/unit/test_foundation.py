@@ -23,7 +23,7 @@ def test_health_readiness_and_shutdown():
     ):
         assert client.get("/api/health").json() == {"status": "ok"}
         assert client.get("/api/health/ready").status_code == 200
-        assert client.get("/openapi.json").status_code == 200
+        assert client.get("/openapi.json").status_code == 404
         database.ping.side_effect = SQLAlchemyError("driver detail with secret")
         response = client.get("/api/health/ready")
         assert response.status_code == 503
@@ -56,3 +56,24 @@ async def test_password_url_encoding():
         assert settings.db_password.get_secret_value() not in str(database.engine.url)
     finally:
         await database.close()
+
+
+@pytest.mark.asyncio
+async def test_lost_runtime_readiness_and_mutation_fence():
+    from types import SimpleNamespace
+
+    import httpx
+
+    app = create_app(config())
+    app.state.runtime = SimpleNamespace(lock_lost=True)
+    app.state.mysql = AsyncMock(spec=MySQLClient)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        assert (await client.get("/api/health")).status_code == 200
+        assert (await client.get("/api/health/ready")).status_code == 503
+        response = await client.post("/api/jobs", json={"name": "must not write"})
+        assert response.status_code == 503
+        assert "锁已失效" in response.json()["detail"]
+        assert (await client.get("/openapi.json")).status_code == 404
+    app.state.mysql.ping.assert_not_awaited()

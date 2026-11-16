@@ -1,21 +1,28 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRoute, RouterView } from 'vue-router'
-import { Briefcase, Calendar, Document, Fold, Expand, UserFilled } from '@element-plus/icons-vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, RouterView } from 'vue-router'
+import { Briefcase, Calendar, Document, Fold, Expand, UserFilled, Checked, Clock } from '@element-plus/icons-vue'
+import { auth, can, logout } from '@/stores/auth'
+import RecruitmentFlow from '@/components/RecruitmentFlow.vue'
 
 const route = useRoute()
-const collapsed = ref(window.innerWidth <= 720)
+const router = useRouter()
+async function exit() { try { await logout() } finally { await router.replace('/login') } }
+const compactScreen = window.matchMedia('(max-width: 1000px)')
+const collapsed = ref(compactScreen.matches)
+function collapseOnNarrowScreen(event: MediaQueryListEvent) { if (event.matches) collapsed.value = true }
+onMounted(() => compactScreen.addEventListener('change', collapseOnNarrowScreen))
+onBeforeUnmount(() => compactScreen.removeEventListener('change', collapseOnNarrowScreen))
 const activeMenu = computed(() => {
   const path = route.path
   if (path.startsWith('/resumes')) return '/resumes'
   if (path.startsWith('/jobs')) return '/jobs'
-  if (path.startsWith('/candidates')) return '/resumes'
+  if (path.startsWith('/candidates')) return '/evaluations'
   if (path.startsWith('/schedules')) return '/schedules'
-  if (path.startsWith('/events')) return `/events/${route.params.batchId}`
+  if (path.startsWith('/events')) return '/history'
   return path
 })
 const pageTitle = computed(() => (route.meta.title as string) ?? '')
-const activeBatchId = computed(() => route.params.batchId as string | undefined)
 </script>
 
 <template>
@@ -23,10 +30,12 @@ const activeBatchId = computed(() => route.params.batchId as string | undefined)
     <aside class="aside" :class="{ 'is-collapsed': collapsed }" aria-label="主导航">
       <div class="brand"><span class="brand-mark">H</span><span v-if="!collapsed" class="brand-name">HireAgent 招聘系统</span></div>
       <el-menu :default-active="activeMenu" :collapse="collapsed" :collapse-transition="false" router class="menu">
-        <el-menu-item index="/jobs" ><el-icon><Briefcase /></el-icon><template #title>岗位管理</template></el-menu-item>
-        <el-menu-item index="/resumes"><el-icon><Document /></el-icon><template #title>简历评估</template></el-menu-item>
-        <el-menu-item index="/schedules" ><el-icon><Calendar /></el-icon><template #title>面试排期</template></el-menu-item>
-        <el-menu-item v-if="activeBatchId" :index="`/events/${activeBatchId}`" ><el-icon><Document /></el-icon><template #title>执行日志</template></el-menu-item>
+        <el-menu-item v-if="can('jobs.read')" index="/jobs" ><el-icon><Briefcase /></el-icon><template #title>岗位管理</template></el-menu-item>
+        <el-menu-item v-if="can('resumes.read')" index="/resumes"><el-icon><Document /></el-icon><template #title>简历评估</template></el-menu-item>
+        <el-menu-item v-if="can('evaluations.read')" index="/evaluations"><el-icon><Checked /></el-icon><template #title>评估管理</template></el-menu-item>
+        <el-menu-item v-if="can('schedules.read')" index="/schedules" ><el-icon><Calendar /></el-icon><template #title>面试排期</template></el-menu-item>
+        <el-menu-item v-if="can('history.read')" index="/history"><el-icon><Clock /></el-icon><template #title>记录日志</template></el-menu-item>
+        <el-menu-item v-if="can('users.manage')" index="/users"><el-icon><UserFilled /></el-icon><template #title>用户管理</template></el-menu-item>
       </el-menu>
       <div class="aside-footer"><span v-if="!collapsed">简历评估 · 人工审核 · 统一排期</span><span v-else>HA</span></div>
     </aside>
@@ -36,14 +45,16 @@ const activeBatchId = computed(() => route.params.batchId as string | undefined)
           <button class="collapse-button" type="button" :aria-label="collapsed ? '展开侧栏' : '收起侧栏'" :aria-expanded="!collapsed" @click="collapsed = !collapsed"><el-icon :size="20"><Expand v-if="collapsed" /><Fold v-else /></el-icon></button>
           <span class="header-title">{{ pageTitle }}</span>
         </div>
-        <span class="header-context"><el-icon :size="16"><UserFilled /></el-icon>招聘工作台</span>
+        <el-dropdown @command="(command: string) => command === 'logout' ? exit() : router.push('/change-password')"><button class="account-button"><el-icon><UserFilled /></el-icon>{{ auth.user?.display_name }} · {{ auth.user?.role_name }}</button><template #dropdown><el-dropdown-menu><el-dropdown-item command="password">修改密码</el-dropdown-item><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
       </header>
-      <main class="main"><RouterView /></main>
+      <main class="main"><RecruitmentFlow /><RouterView /></main>
     </div>
   </div>
 </template>
 
 <style scoped>
+.account-button { border: 0; background: transparent; display: flex; gap: 6px; align-items: center; cursor: pointer; color: var(--ha-text-secondary); font-size: 13px; }
+
 .layout { display: flex; height: 100%; overflow: hidden; }
 .aside { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ha-sidebar-bg); transition: width .2s ease; overflow: hidden; }
 .aside.is-collapsed { width: 64px; }
